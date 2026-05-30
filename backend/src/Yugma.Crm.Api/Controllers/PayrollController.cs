@@ -175,6 +175,45 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access) : Cont
         });
     }
 
+    /// <summary>The current user's annual CTC breakup: fixed earnings + employer contributions.</summary>
+    [HttpGet("ctc")]
+    public async Task<IActionResult> Ctc([FromQuery] int? year = null, CancellationToken ct = default)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.Self is null) return NotFound(new { message = "No employee record is linked to your account." });
+        var y = year ?? FyStartYear;
+        var rules = await RulesAsync(ct);
+        var month = (y == Today.Year) ? Today.Month : 3;
+        var slip = PayrollFactory.BuildRegister(new[] { acc.Self }.ToList(), y, month, Today, null, rules).Rows.First();
+
+        decimal A(decimal monthly) => Math.Round(monthly * 12, 0);
+        var earnings = new[]
+        {
+            new { label = "Basic", monthly = slip.Basic, annual = A(slip.Basic) },
+            new { label = "House Rent Allowance", monthly = slip.Hra, annual = A(slip.Hra) },
+            new { label = "Special allowance", monthly = slip.Special, annual = A(slip.Special) },
+            new { label = "Conveyance", monthly = slip.Conveyance, annual = A(slip.Conveyance) }
+        };
+        var grossA = earnings.Sum(e => e.annual);
+        var employerPfA = A(slip.Pf);                                  // employer PF matches employee PF
+        var gratuityA = Math.Round(slip.Basic * 12 * 0.0481m, 0);      // 4.81% of basic
+        var employer = new[]
+        {
+            new { label = "Employer PF contribution", annual = employerPfA },
+            new { label = "Gratuity", annual = gratuityA }
+        };
+        return Ok(new
+        {
+            year = y,
+            annualCtc = grossA + employerPfA + gratuityA,
+            monthlyGross = slip.Basic + slip.Hra + slip.Special + slip.Conveyance,
+            grossEarningsAnnual = grossA,
+            earnings,
+            employerContributions = employer,
+            benefitsAnnual = employerPfA + gratuityA
+        });
+    }
+
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
     {

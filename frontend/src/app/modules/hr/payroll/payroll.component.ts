@@ -51,6 +51,11 @@ interface MyPayroll {
   annualTax: number;
   paidDays: { month: number; label: string; days: number }[];
 }
+interface CtcComponent { label: string; monthly?: number; annual: number; }
+interface CtcDto {
+  year: number; annualCtc: number; monthlyGross: number; grossEarningsAnnual: number; benefitsAnnual: number;
+  earnings: CtcComponent[]; employerContributions: CtcComponent[];
+}
 
 @Component({
   selector: 'app-payroll',
@@ -75,6 +80,9 @@ interface MyPayroll {
           <p-tab value="mypay">My Payroll</p-tab>
           <p-tab value="declaration">Investment Declaration</p-tab>
           <p-tab value="comparetax">Compare Tax</p-tab>
+          <p-tab value="ctc">CTC Details</p-tab>
+          <p-tab value="form12bb">Form 12BB</p-tab>
+          <p-tab value="documents">Documents</p-tab>
           <p-tab value="overview">Overview</p-tab>
           <p-tab value="register">Register (employee-wise)</p-tab>
           <p-tab value="yearly">Yearly</p-tab>
@@ -242,6 +250,133 @@ interface MyPayroll {
                 <div class="py-10 text-center text-surface-500">Click <b>Recompute</b> (or "Compare tax" on the declaration tab) to see your old vs new regime comparison.</div>
               }
             </div>
+          </p-tabpanel>
+
+          <!-- ===================== CTC DETAILS ===================== -->
+          <p-tabpanel value="ctc">
+            @if (ctc(); as c) {
+              <div class="p-2 space-y-4">
+                <div class="flex flex-wrap items-center gap-3">
+                  <div class="rounded-xl bg-brand-50 dark:bg-brand-500/10 px-4 py-3">
+                    <div class="text-xs text-surface-500">Total annual CTC</div>
+                    <div class="text-2xl font-semibold tabular-nums text-brand-700 dark:text-brand-300">₹{{ c.annualCtc | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 px-4 py-3">
+                    <div class="text-xs text-surface-500">Monthly gross</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ c.monthlyGross | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 px-4 py-3">
+                    <div class="text-xs text-surface-500">Retirals & benefits (yr)</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ c.benefitsAnnual | number: '1.0-0' }}</div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div class="card p-4">
+                    <div class="section-title mb-3">Fixed earnings</div>
+                    <table class="w-full text-sm">
+                      <thead><tr class="text-surface-500 text-xs uppercase"><th class="text-left font-medium pb-2">Component</th><th class="text-right font-medium pb-2">Monthly</th><th class="text-right font-medium pb-2">Annual</th></tr></thead>
+                      <tbody>
+                        @for (e of c.earnings; track e.label) {
+                          <tr class="border-t border-surface-100 dark:border-surface-800"><td class="py-1.5">{{ e.label }}</td><td class="text-right tabular-nums">₹{{ e.monthly | number: '1.0-0' }}</td><td class="text-right tabular-nums">₹{{ e.annual | number: '1.0-0' }}</td></tr>
+                        }
+                        <tr class="border-t border-surface-200 dark:border-surface-700 font-semibold"><td class="py-1.5">Gross earnings</td><td class="text-right tabular-nums">₹{{ c.monthlyGross | number: '1.0-0' }}</td><td class="text-right tabular-nums">₹{{ c.grossEarningsAnnual | number: '1.0-0' }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="card p-4">
+                    <div class="section-title mb-3">Employer contributions & benefits</div>
+                    <table class="w-full text-sm">
+                      <tbody>
+                        @for (e of c.employerContributions; track e.label) {
+                          <tr class="border-t border-surface-100 dark:border-surface-800 first:border-0"><td class="py-1.5">{{ e.label }}</td><td class="text-right tabular-nums">₹{{ e.annual | number: '1.0-0' }}</td></tr>
+                        }
+                        <tr class="border-t border-surface-200 dark:border-surface-700 font-semibold"><td class="py-1.5">Total CTC</td><td class="text-right tabular-nums">₹{{ c.annualCtc | number: '1.0-0' }}</td></tr>
+                      </tbody>
+                    </table>
+                    <p class="text-[11px] text-surface-400 mt-3"><i class="pi pi-info-circle mr-1"></i>CTC = fixed gross earnings + employer PF + gratuity. Variable pay (bonus) is paid separately.</p>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ===================== FORM 12BB ===================== -->
+          <p-tabpanel value="form12bb">
+            @if (declaration(); as d) {
+              <div class="p-2 space-y-4">
+                <div>
+                  <div class="text-lg font-semibold">Form 12BB · FY {{ d.year }}-{{ d.year + 1 }}</div>
+                  <div class="text-xs text-surface-500">Statement of particulars for claiming tax deductions — auto-built from your investment declaration.</div>
+                </div>
+                <div class="card p-4 overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="text-surface-500 text-xs uppercase border-b border-surface-200 dark:border-surface-800">
+                        <th class="text-left font-medium py-2 w-10">Sl</th>
+                        <th class="text-left font-medium py-2">Nature of claim</th>
+                        <th class="text-right font-medium py-2">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (s of d.sections; track s.code; let i = $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="py-2 text-surface-400">{{ i + 1 }}</td>
+                          <td class="py-2">{{ s.label }} @if (s.limit) { <span class="text-[11px] text-surface-400">(limit ₹{{ s.limit | number: '1.0-0' }})</span> }</td>
+                          <td class="py-2 text-right tabular-nums">₹{{ form12bbAmount(s) | number: '1.0-0' }}</td>
+                        </tr>
+                      }
+                      <tr class="font-semibold border-t border-surface-200 dark:border-surface-700">
+                        <td></td><td class="py-2">Total declared</td>
+                        <td class="py-2 text-right tabular-nums">₹{{ form12bbTotal() | number: '1.0-0' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="text-[11px] text-surface-400"><i class="pi pi-verified mr-1"></i>Verification: I declare that the above particulars are true. Backed by the declaration saved on the Investment Declaration tab.</div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ===================== DOCUMENTS ===================== -->
+          <p-tabpanel value="documents">
+            @if (myPay(); as m) {
+              <div class="p-2 space-y-3">
+                <div class="text-lg font-semibold">Salary documents · FY {{ m.year }}-{{ m.year + 1 }}</div>
+                <div class="text-xs text-surface-500 mb-2">Download your monthly payslips and tax statement. Payslips are available once a month is processed.</div>
+                <p-table [value]="m.salaryVsTax" responsiveLayout="scroll" styleClass="!border-0 text-sm">
+                  <ng-template pTemplate="header">
+                    <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                      <th class="!text-xs !uppercase !text-surface-500">Month</th>
+                      <th class="!text-xs !uppercase !text-surface-500 !text-right">Net pay</th>
+                      <th class="!text-xs !uppercase !text-surface-500">Status</th>
+                      <th class="!text-xs !uppercase !text-surface-500 !text-right">Payslip</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template pTemplate="body" let-r>
+                    <tr>
+                      <td>{{ r.label }}</td>
+                      <td class="text-right tabular-nums">{{ r.net ? ('₹' + (r.net | number: '1.0-0')) : '—' }}</td>
+                      <td><app-status-pill [tone]="statusTone(r.status)">{{ r.status | titlecase }}</app-status-pill></td>
+                      <td class="text-right">
+                        @if (r.status !== 'scheduled') {
+                          <button pButton size="small" [text]="true" icon="pi pi-download" label="Payslip" (click)="downloadPayslip(r)"></button>
+                        } @else { <span class="text-[11px] text-surface-400">Not yet</span> }
+                      </td>
+                    </tr>
+                  </ng-template>
+                </p-table>
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <button pButton severity="secondary" outlined size="small" icon="pi pi-file" label="Annual taxsheet (CSV)" (click)="downloadTaxsheet()"></button>
+                  <span class="text-[11px] text-surface-400 self-center"><i class="pi pi-info-circle mr-1"></i>Form 16 is issued by HR after the financial year closes.</span>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
           </p-tabpanel>
 
           <!-- ===================== OVERVIEW ===================== -->
@@ -561,6 +696,7 @@ export class PayrollComponent {
   protected readonly myPay = signal<MyPayroll | null>(null);
   protected readonly declaration = signal<DeclarationDto | null>(null);
   protected readonly compare = signal<CompareTaxDto | null>(null);
+  protected readonly ctc = signal<CtcDto | null>(null);
   protected declAmounts: Record<string, number> = {};
   protected readonly metroOptions = [{ label: 'Non-metro', value: 0 }, { label: 'Metro', value: 1 }];
 
@@ -587,6 +723,46 @@ export class PayrollComponent {
     this.loadYear();
     this.loadMyPay();
     this.loadDeclaration();
+    this.loadCtc();
+  }
+
+  loadCtc() {
+    this.http.get<CtcDto>(`${this.base}/ctc`).subscribe({ next: (d) => this.ctc.set(d), error: () => this.ctc.set(null) });
+  }
+
+  // ---- Form 12BB (built from the saved declaration) ----
+  form12bbAmount(s: DeclSection): number {
+    const total = this.sectionTotal(s);
+    return s.limit ? Math.min(total, s.limit) : total;
+  }
+  form12bbTotal(): number {
+    return (this.declaration()?.sections ?? []).reduce((sum, s) => sum + this.form12bbAmount(s), 0);
+  }
+
+  // ---- document downloads (reuses the existing download() helper) ----
+  private csv(rows: (string | number)[][]): string {
+    const cell = (v: string | number) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+    return rows.map((r) => r.map(cell).join(',')).join('\r\n');
+  }
+  downloadPayslip(r: { label: string; net: number }) {
+    const m = this.myPay(); const s = m?.slip;
+    if (!s) return;
+    const rows: (string | number)[][] = [
+      ['Payslip', r.label], ['Employee', m!.employee.name], ['Code', m!.employee.code], [''],
+      ['Earnings', 'Amount'], ['Basic', s.basic], ['HRA', s.hra], ['Special allowance', s.special], ['Conveyance', s.conveyance], ['Gross', s.gross], [''],
+      ['Deductions', 'Amount'], ['PF', s.pf], ['Professional tax', s.pt], ['TDS', s.tds], ['Total deductions', s.totalDeductions], [''],
+      ['Net pay', r.net || s.net]
+    ];
+    this.download(`payslip-${r.label.replace(/\s+/g, '-')}.csv`, this.csv(rows));
+    this.messages.add({ severity: 'success', summary: 'Payslip downloaded', detail: r.label });
+  }
+  downloadTaxsheet() {
+    const m = this.myPay();
+    if (!m) return;
+    const rows: (string | number)[][] = [['Month', 'Net pay', 'Tax'], ...m.salaryVsTax.map((x) => [x.label, x.net || 0, x.tax || 0])];
+    rows.push(['', '', ''], ['Annual tax (YTD)', '', m.annualTax]);
+    this.download(`taxsheet-${m.year}.csv`, this.csv(rows));
+    this.messages.add({ severity: 'success', summary: 'Taxsheet downloaded', detail: `FY ${m.year}-${m.year + 1}` });
   }
 
   loadRegister() {
