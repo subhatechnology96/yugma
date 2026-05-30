@@ -1,3 +1,4 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Application.Hr.Employees;
 using Yugma.Crm.Application.Hr.Employees.Commands;
 using Yugma.Crm.Application.Hr.Employees.Queries;
@@ -12,9 +13,27 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/employees")]
 [Produces("application/json")]
-[AllowAnonymous]
-public sealed class EmployeesController(ISender mediator) : ControllerBase
+[Authorize] // identity needed to scope the directory; HR / admins see all, others see only themselves
+public sealed class EmployeesController(ISender mediator, HrAccess access) : ControllerBase
 {
+    /// <summary>Tells the client what the current user may do on the Employees screen.</summary>
+    [HttpGet("access")]
+    public async Task<IActionResult> Access(CancellationToken ct)
+    {
+        var a = await access.ResolveAsync(ct);
+        return Ok(new
+        {
+            employeeId = a.SelfId,
+            name = a.SelfName,
+            department = a.Self?.Department,
+            isHr = a.IsHr,
+            canManageDirectory = a.CanManage,
+            canAddEmployee = a.CanManage,
+            isTeamLead = a.IsTeamLead,
+            scope = a.Scope
+        });
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<EmployeeDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(
@@ -27,7 +46,10 @@ public sealed class EmployeesController(ISender mediator) : ControllerBase
         [FromQuery] string? sortDir = "asc",
         CancellationToken ct = default)
     {
-        var result = await mediator.Send(new ListEmployeesQuery(page, pageSize, search, department, status, sortBy, sortDir), ct);
+        var a = await access.ResolveAsync(ct);
+        // Managers see only their own row (or their team if a lead); HR/admins see all (VisibleIds == null).
+        var restrictToIds = a.VisibleIds?.ToArray();
+        var result = await mediator.Send(new ListEmployeesQuery(page, pageSize, search, department, status, sortBy, sortDir, restrictToIds), ct);
         return ToActionResult(result);
     }
 
@@ -46,6 +68,10 @@ public sealed class EmployeesController(ISender mediator) : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateEmployeeCommand cmd, CancellationToken ct)
     {
+        var a = await access.ResolveAsync(ct);
+        if (!a.CanManage)
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "forbidden", message = "Only HR or an administrator can add employees." });
+
         var result = await mediator.Send(cmd, ct);
         if (!result.IsSuccess) return ToActionResult(result);
         return CreatedAtAction(nameof(GetById), new { id = result.Value.Id }, result.Value);

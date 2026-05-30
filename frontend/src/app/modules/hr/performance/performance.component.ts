@@ -20,6 +20,7 @@ import { StatusPillComponent, StatusTone } from '@shared/components/status-pill/
 import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { ThemeService } from '@core/services/theme.service';
 import { AuthService } from '@core/services/auth.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 import { HrAgentRailComponent } from '../agents/hr-agent-rail.component';
 import { environment } from '@env/environment';
 
@@ -323,10 +324,9 @@ export class PerformanceComponent {
   private readonly base = `${environment.apiBaseUrl}/hr/performance`;
 
   /** Only Admin / HR / Manager may review and change ratings. */
-  protected readonly canReview = computed(() => {
-    const roles = (this.auth.user()?.roles ?? []).map((r) => r.toLowerCase());
-    return roles.some((r) => r === 'admin' || r === 'hr' || r === 'manager');
-  });
+  private readonly hrAccess = inject(HrAccessService);
+  // HR/admins review anyone; team leads review their reports (the data they see is already scoped to their team).
+  protected readonly canReview = computed(() => this.hrAccess.canManageTeam());
 
   protected year = new Date().getFullYear();
   protected readonly yearOptions = [this.year - 2, this.year - 1, this.year].map((y) => ({ label: String(y), value: y }));

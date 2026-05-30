@@ -89,3 +89,15 @@ internal sealed class CompetencyDefinitionConfiguration : IEntityTypeConfigurati
         b.Property(e => e.Name).HasMaxLength(60);
     }
 }
+
+internal sealed class HolidayConfiguration : IEntityTypeConfiguration<Holiday>
+{
+    public void Configure(EntityTypeBuilder<Holiday> b)
+    {
+        b.ToTable("holidays");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Name).HasMaxLength(120).IsRequired();
+        b.Property(e => e.Type).HasMaxLength(20).IsRequired();
+        b.HasIndex(e => new { e.Year, e.Type });
+    }
+}

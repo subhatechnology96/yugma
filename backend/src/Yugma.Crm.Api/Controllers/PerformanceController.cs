@@ -1,3 +1,4 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Api.Performance;
 using Yugma.Crm.Domain.Hr.Performance;
 using Yugma.Crm.Infrastructure.Persistence;
@@ -10,9 +11,11 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/performance")]
 [Produces("application/json")]
-[AllowAnonymous]
-public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
+[Authorize] // HR/admins see the org tracker; everyone else sees only their own performance
+public sealed class PerformanceController(YugmaDbContext db, HrAccess access) : ControllerBase
 {
+    private static IActionResult Forbidden(string message) =>
+        new ObjectResult(new { message }) { StatusCode = StatusCodes.Status403Forbidden };
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
 
     private async Task<Dictionary<string, PerformanceReview>> OverridesAsync(Guid? employeeId, CancellationToken ct)
@@ -31,7 +34,9 @@ public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(typeof(PerfSummaryDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> Summary([FromQuery] int? year = null, CancellationToken ct = default)
     {
+        var acc = await access.ResolveAsync(ct);
         var employees = await db.Employees.AsNoTracking().ToListAsync(ct);
+        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
         var ov = await OverridesAsync(null, ct);
         return Ok(PerformanceFactory.BuildSummary(employees, year ?? Today.Year, Today, await CompetenciesAsync(ct), ov));
     }
@@ -48,7 +53,9 @@ public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
                 || EF.Functions.ILike(e.Department, $"%{t}%")
                 || EF.Functions.ILike(e.Designation, $"%{t}%"));
         }
+        var acc = await access.ResolveAsync(ct);
         var employees = await q.ToListAsync(ct);
+        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
         var ov = await OverridesAsync(null, ct);
         return Ok(PerformanceFactory.BuildTracker(employees, Today, await CompetenciesAsync(ct), ov));
     }
@@ -58,6 +65,9 @@ public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Employee(Guid id, CancellationToken ct)
     {
+        var acc = await access.ResolveAsync(ct);
+        if (!acc.CanSeeEmployee(id))
+            return Forbidden("You can only view your own or your team's performance.");
         var emp = await db.Employees.FirstOrDefaultAsync(e => e.Id == id, ct);
         if (emp is null) return NotFound();
         var ov = await OverridesAsync(id, ct);
@@ -71,6 +81,8 @@ public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpsertReview(Guid id, [FromBody] ReviewBody body, CancellationToken ct)
     {
+        if (!(await access.ResolveAsync(ct)).CanManageEmployee(id))
+            return Forbidden("You can only review your own team.");
         var emp = await db.Employees.FirstOrDefaultAsync(e => e.Id == id, ct);
         if (emp is null) return NotFound(new { message = "Employee not found." });
         if (body.Quarter is < 1 or > 4) return BadRequest(new { message = "Quarter must be 1–4." });
@@ -99,6 +111,8 @@ public sealed class PerformanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ResetReview(Guid id, [FromQuery] int year, [FromQuery] int quarter, CancellationToken ct)
     {
+        if (!(await access.ResolveAsync(ct)).CanManageEmployee(id))
+            return Forbidden("You can only change your own team's review.");
         var existing = await db.PerformanceReviews.FirstOrDefaultAsync(r => r.EmployeeId == id && r.Year == year && r.Quarter == quarter, ct);
         if (existing is not null) { db.PerformanceReviews.Remove(existing); await db.SaveChangesAsync(ct); }
         return NoContent();

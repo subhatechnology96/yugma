@@ -459,21 +459,26 @@
                     </div>
 
                     <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
-                      <div class="section-title mb-3">Career timeline</div>
-                      <ol class="space-y-3">
-                        @for (ev of c.timeline; track ev.date + ev.title) {
-                          <li class="flex gap-3">
-                            <span class="w-8 h-8 shrink-0 rounded-full grid place-items-center" [class]="eventIconBg(ev.type)">
-                              <i class="pi {{ ev.icon }} text-sm"></i>
-                            </span>
-                            <div class="min-w-0">
-                              <div class="text-sm font-medium">{{ ev.title }}</div>
-                              <div class="text-xs text-surface-500">{{ ev.detail }}</div>
-                              <div class="text-[11px] text-surface-400 mt-0.5">{{ ev.date | date: 'mediumDate' }}</div>
-                            </div>
-                          </li>
-                        }
-                      </ol>
+                      <button type="button" class="w-full flex items-center justify-between" (click)="toggleTimeline()">
+                        <span class="section-title">Career timeline <span class="text-surface-400 font-normal">({{ c.timeline.length }})</span></span>
+                        <i class="pi text-xs text-surface-400" [class.pi-chevron-down]="timelineOpen()" [class.pi-chevron-right]="!timelineOpen()"></i>
+                      </button>
+                      @if (timelineOpen()) {
+                        <ol class="space-y-3 mt-3">
+                          @for (ev of c.timeline; track ev.date + ev.title) {
+                            <li class="flex gap-3">
+                              <span class="w-8 h-8 shrink-0 rounded-full grid place-items-center" [class]="eventIconBg(ev.type)">
+                                <i class="pi {{ ev.icon }} text-sm"></i>
+                              </span>
+                              <div class="min-w-0">
+                                <div class="text-sm font-medium">{{ ev.title }}</div>
+                                <div class="text-xs text-surface-500">{{ ev.detail }}</div>
+                                <div class="text-[11px] text-surface-400 mt-0.5">{{ ev.date | date: 'mediumDate' }}</div>
+                              </div>
+                            </li>
+                          }
+                        </ol>
+                      }
                     </div>
                   </div>
 
@@ -509,6 +514,21 @@
                         }
                       </ul>
                     </div>
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="section-title mb-3">HR over time</div>
+                      <ul class="space-y-2.5">
+                        @for (h of c.hrPartners; track h.from) {
+                          <li class="flex items-center gap-3">
+                            <app-avatar [name]="h.name" size="sm" />
+                            <div class="min-w-0">
+                              <div class="text-sm font-medium truncate">{{ h.name }}</div>
+                              <div class="text-[11px] text-surface-500">{{ h.relationship }} · {{ h.from | date: 'MMM y' }} – {{ h.to ? (h.to | date: 'MMM y') : 'Present' }}</div>
+                            </div>
+                          </li>
+                        }
+                        @if (!c.hrPartners.length) { <li class="text-sm text-surface-400">No HR partner history.</li> }
+                      </ul>
+                    </div>
                   </div>
                 </div>
 
@@ -523,6 +543,7 @@
                   <p-table [value]="c.projects" responsiveLayout="scroll" [rowHover]="true" [paginator]="c.projects.length > 10" [rows]="10">
                     <ng-template pTemplate="header">
                       <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                        <th class="!w-8"></th>
                         <th class="!text-xs !uppercase !text-surface-500">Project</th>
                         <th class="!text-xs !uppercase !text-surface-500">Role</th>
                         <th class="!text-xs !uppercase !text-surface-500">Manager</th>
@@ -532,7 +553,10 @@
                       </tr>
                     </ng-template>
                     <ng-template pTemplate="body" let-p>
-                      <tr class="cursor-pointer" (click)="openProject(p)">
+                      <tr class="cursor-pointer" (click)="toggleProject(p.id)">
+                        <td class="!w-8 text-surface-400">
+                          <i class="pi text-xs" [class.pi-chevron-down]="isProjectOpen(p.id)" [class.pi-chevron-right]="!isProjectOpen(p.id)"></i>
+                        </td>
                         <td>
                           <div class="font-medium flex items-center gap-1.5">
                             {{ p.name }}
@@ -552,6 +576,56 @@
                         </td>
                         <td><app-status-pill [tone]="projectTone(p.status)">{{ p.status }}</app-status-pill></td>
                       </tr>
+                      @if (isProjectOpen(p.id)) {
+                        <tr class="!bg-surface-50/70 dark:!bg-surface-900/30">
+                          <td colspan="7" class="!py-4">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 px-2">
+                              <div class="space-y-3">
+                                @if (p.responsibilities.length) {
+                                  <div>
+                                    <div class="text-[11px] uppercase text-surface-400 mb-1">Responsibilities</div>
+                                    <ul class="list-disc ml-5 text-sm space-y-0.5">
+                                      @for (r of p.responsibilities; track r) { <li>{{ r }}</li> }
+                                    </ul>
+                                  </div>
+                                }
+                                @if (p.skills.length) {
+                                  <div>
+                                    <div class="text-[11px] uppercase text-surface-400 mb-1">Skills</div>
+                                    <div class="flex flex-wrap gap-1.5">
+                                      @for (s of p.skills; track s) { <span class="text-[11px] px-2 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800">{{ s }}</span> }
+                                    </div>
+                                  </div>
+                                }
+                              </div>
+                              <div class="space-y-3">
+                                @if (p.outcome) {
+                                  <div><div class="text-[11px] uppercase text-surface-400 mb-1">Outcome</div><p class="text-sm">{{ p.outcome }}</p></div>
+                                }
+                                @if (p.feedback) {
+                                  <div class="rounded-lg bg-white dark:bg-surface-900/50 border border-surface-200 dark:border-surface-800 p-3"><div class="text-[11px] uppercase text-surface-400 mb-1">Manager feedback</div><p class="text-sm italic">“{{ p.feedback }}”</p></div>
+                                }
+                                @if (p.achievements.length) {
+                                  <div>
+                                    <div class="text-[11px] uppercase text-surface-400 mb-1">Achievements</div>
+                                    <ul class="text-sm space-y-0.5">
+                                      @for (a of p.achievements; track a) { <li class="flex gap-2"><i class="pi pi-trophy text-amber-500 text-xs mt-1"></i><span>{{ a }}</span></li> }
+                                    </ul>
+                                  </div>
+                                }
+                              </div>
+                            </div>
+                            @if (canEdit()) {
+                              <div class="flex justify-end gap-2 mt-3 px-2">
+                                <button pButton size="small" severity="secondary" outlined icon="pi pi-pencil" label="Edit" (click)="editProject(p); $event.stopPropagation()"></button>
+                                @if (p.isCustom) {
+                                  <button pButton size="small" severity="danger" outlined icon="pi pi-trash" label="Remove" (click)="deleteProject(p); $event.stopPropagation()"></button>
+                                }
+                              </div>
+                            }
+                          </td>
+                        </tr>
+                      }
                     </ng-template>
                   </p-table>
                 </div>

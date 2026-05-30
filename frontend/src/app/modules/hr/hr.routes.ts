@@ -1,9 +1,11 @@
 import { Routes } from '@angular/router';
+import { accessGuard } from '@core/guards/access.guard';
 
 export const HR_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'employees' },
   {
     path: 'agents',
+    canActivate: [accessGuard('hrManage')],
     loadComponent: () =>
       import('./agents/agents-hub.component').then((m) => m.AgentsHubComponent),
     data: { breadcrumb: 'AI Agents' }
@@ -44,6 +46,7 @@ export const HR_ROUTES: Routes = [
   },
   {
     path: 'recruitment',
+    canActivate: [accessGuard('hrManage')],
     loadComponent: () =>
       import('./recruitment/recruitment.component').then((m) => m.RecruitmentComponent),
     data: { breadcrumb: 'Recruitment' }
@@ -56,18 +59,21 @@ export const HR_ROUTES: Routes = [
   },
   {
     path: 'analytics',
+    canActivate: [accessGuard('hrManage')],
     loadComponent: () =>
       import('./analytics/hr-analytics.component').then((m) => m.HrAnalyticsComponent),
     data: { breadcrumb: 'HR Analytics' }
   },
   {
     path: 'team',
+    canActivate: [accessGuard('teamLead')],
     loadComponent: () =>
       import('./team/team-management.component').then((m) => m.TeamManagementComponent),
     data: { breadcrumb: 'Team Management' } // centralized hierarchy assignment
   },
   {
     path: 'hierarchy',
+    canActivate: [accessGuard('teamLead')],
     loadComponent: () =>
       import('./hierarchy/hierarchy-management.component').then((m) => m.HierarchyManagementComponent),
     data: { breadcrumb: 'Hierarchy Management' } // L1–L10 bands, org tree, trail-to-CEO

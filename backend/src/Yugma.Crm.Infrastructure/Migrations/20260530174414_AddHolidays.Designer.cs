@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Yugma.Crm.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Yugma.Crm.Infrastructure.Persistence;
 namespace Yugma.Crm.Infrastructure.Migrations
 {
     [DbContext(typeof(YugmaDbContext))]
-    partial class YugmaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260530174414_AddHolidays")]
+    partial class AddHolidays
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1716,54 +1719,6 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Status");
 
                     b.ToTable("job_openings", "yugma");
-                });
-
-            modelBuilder.Entity("Yugma.Crm.Domain.Hr.Tax.InvestmentDeclaration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(14,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ItemKey")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "EmployeeId", "Year", "ItemKey")
-                        .IsUnique();
-
-                    b.ToTable("investment_declarations", "yugma");
                 });
 
             modelBuilder.Entity("Yugma.Crm.Domain.Identity.AppUser", b =>

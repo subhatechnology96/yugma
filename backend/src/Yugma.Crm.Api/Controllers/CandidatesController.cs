@@ -1,8 +1,10 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Domain.Abstractions;
 using Yugma.Crm.Domain.Hr.Recruiting;
 using Yugma.Crm.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Yugma.Crm.Api.Controllers;
@@ -10,10 +12,23 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr")]
 [Produces("application/json")]
-[AllowAnonymous]
-public sealed class CandidatesController(YugmaDbContext db, ITenantContext tenant) : ControllerBase
+[Authorize] // Recruitment is HR/admin only — the action filter below blocks everyone else
+public sealed class CandidatesController(YugmaDbContext db, ITenantContext tenant, HrAccess access) : ControllerBase, IAsyncActionFilter
 {
     private static readonly string[] StageOrder = { "applied", "screening", "interview", "offer", "hired", "rejected" };
+
+    /// <summary>Gates the entire controller: only HR / admins may use the recruitment endpoints.</summary>
+    [NonAction]
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        if ((await access.ResolveAsync(context.HttpContext.RequestAborted)).Restricted)
+        {
+            context.Result = new ObjectResult(new { message = "Recruitment is available to HR and administrators only." })
+            { StatusCode = StatusCodes.Status403Forbidden };
+            return;
+        }
+        await next();
+    }
 
     // ---------------- candidates ----------------
     [HttpGet("candidates")]

@@ -92,12 +92,22 @@ public static class DataSeeder
                 new HierarchyLevel { Rank = 9,  Code = "L9",  Title = "Business Head",    Description = "Heads a business unit / P&L." },
                 new HierarchyLevel { Rank = 10, Code = "L10", Title = "CEO",              Description = "Chief Executive — top of the organization." });
 
-        if (!await db.LeaveTypes.AnyAsync(ct))
-            db.LeaveTypes.AddRange(
-                new LeaveTypeConfig { Code = "Casual",  Label = "Casual",   AnnualEntitlement = 12, SortOrder = 1 },
-                new LeaveTypeConfig { Code = "Sick",    Label = "Sick",     AnnualEntitlement = 12, SortOrder = 2 },
-                new LeaveTypeConfig { Code = "Earned",  Label = "Earned",   AnnualEntitlement = 18, SortOrder = 3 },
-                new LeaveTypeConfig { Code = "CompOff", Label = "Comp-off", AnnualEntitlement = 6,  SortOrder = 4 });
+        // Leave types — codes MUST match the LeaveType enum names. Added idempotently so new types
+        // (Paid/Special/Blocked/RestrictedHoliday) appear even on an already-seeded database.
+        var leaveTypes = new[]
+        {
+            new LeaveTypeConfig { Code = "Casual",           Label = "Casual",            AnnualEntitlement = 12, SortOrder = 1 },
+            new LeaveTypeConfig { Code = "Sick",             Label = "Sick",              AnnualEntitlement = 12, SortOrder = 2 },
+            new LeaveTypeConfig { Code = "Earned",           Label = "Earned",            AnnualEntitlement = 18, SortOrder = 3 },
+            new LeaveTypeConfig { Code = "Paid",             Label = "Paid leave",        AnnualEntitlement = 12, SortOrder = 4 },
+            new LeaveTypeConfig { Code = "CompOff",          Label = "Comp-off",          AnnualEntitlement = 6,  SortOrder = 5 },
+            new LeaveTypeConfig { Code = "Special",          Label = "Special leave",     AnnualEntitlement = 5,  SortOrder = 6 },
+            new LeaveTypeConfig { Code = "Blocked",          Label = "Blocked leave",     AnnualEntitlement = 3,  SortOrder = 7 },
+            new LeaveTypeConfig { Code = "RestrictedHoliday", Label = "Restricted Holiday", AnnualEntitlement = 2, SortOrder = 8 }
+        };
+        var existingLeaveCodes = (await db.LeaveTypes.Select(t => t.Code).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newLeaveTypes = leaveTypes.Where(t => !existingLeaveCodes.Contains(t.Code)).ToList();
+        if (newLeaveTypes.Count > 0) db.LeaveTypes.AddRange(newLeaveTypes);
 
         if (!await db.PayrollSettings.AnyAsync(ct))
             db.PayrollSettings.Add(new PayrollSetting
@@ -124,6 +134,31 @@ public static class DataSeeder
                 new CompetencyDefinition { Name = "Ownership",     SortOrder = 3 },
                 new CompetencyDefinition { Name = "Innovation",    SortOrder = 4 },
                 new CompetencyDefinition { Name = "Communication", SortOrder = 5 });
+
+        if (!await db.Holidays.AnyAsync(h => h.Year == 2026, ct))
+        {
+            Holiday Pub(string d, string n) => new() { Date = DateOnly.Parse(d), Name = n, Type = "Public", Year = 2026 };
+            Holiday Opt(string d, string n) => new() { Date = DateOnly.Parse(d), Name = n, Type = "Optional", Year = 2026 };
+            db.Holidays.AddRange(
+                // Government / public holidays (mandatory, company-wide)
+                Pub("2026-01-26", "Republic Day"),
+                Pub("2026-03-06", "Holi"),
+                Pub("2026-04-03", "Good Friday"),
+                Pub("2026-05-01", "Labour Day"),
+                Pub("2026-08-15", "Independence Day"),
+                Pub("2026-08-28", "Janmashtami"),
+                Pub("2026-10-02", "Gandhi Jayanti"),
+                Pub("2026-10-20", "Dussehra"),
+                Pub("2026-11-08", "Diwali"),
+                Pub("2026-12-25", "Christmas"),
+                // Optional / Restricted Holidays (employee picks up to their RH entitlement)
+                Opt("2026-01-14", "Makar Sankranti / Pongal"),
+                Opt("2026-04-14", "Dr. Ambedkar Jayanti"),
+                Opt("2026-05-27", "Eid al-Adha"),
+                Opt("2026-09-14", "Onam"),
+                Opt("2026-11-09", "Bhai Dooj"),
+                Opt("2026-11-24", "Guru Nanak Jayanti"));
+        }
 
         await db.SaveChangesAsync(ct);
     }
@@ -236,6 +271,7 @@ public static class DataSeeder
             ("Olivia Owner",    "owner@yugma.io",     "Executive",              "Founder & Chairperson", "Bengaluru", 10, null,           300m, 5, "+91 99000 20001"),
             ("Aditya Admin",    "admin@yugma.io",     "Information Technology",  "IT Administrator",      "Bengaluru", 5,  "Aarav Verma",  32m,  4, "+91 99000 20002"),
             ("Maya Manager",    "manager@yugma.io",   "Engineering",             "Engineering Manager",   "Bengaluru", 5,  "Priya Sharma", 48m,  5, "+91 99000 20003"),
+            ("Hema Reddy",      "hr@yugma.io",        "Human Resources",         "HR Manager",            "Bengaluru", 5,  "Olivia Owner", 38m,  4, "+91 99000 20005"),
             ("Aaron Associate", "associate@yugma.io", "Engineering",             "Associate Engineer",    "Bengaluru", 2,  "Maya Manager", 12m,  4, "+91 99000 20004")
         };
 
@@ -247,6 +283,13 @@ public static class DataSeeder
             .DefaultIfEmpty(1000).Max();
 
         var changed = false;
+
+        // Standardise the HR department name so "Human Resources" is the one HR department.
+        foreach (var e in all.Where(e => e.Department.Equals("People", StringComparison.OrdinalIgnoreCase)))
+        {
+            e.Reassign("Human Resources", e.Designation, e.Manager, "seed");
+            changed = true;
+        }
         foreach (var p in personas)
         {
             if (emails.Contains(p.Email)) continue;
@@ -777,12 +820,15 @@ public static class DataSeeder
         var existing = await db.AppUsers.IgnoreQueryFilters().ToListAsync(ct);
         var byEmail = existing.ToDictionary(u => u.Email, StringComparer.OrdinalIgnoreCase);
 
-        // Ensure the four generic, ACTIVE persona logins exist so each access level can be tested.
+        // Ensure the generic, ACTIVE persona logins exist so each access level can be tested.
+        // Note: hr@ has the plain "Member" role but sits in the Human Resources department — it demonstrates
+        // DEPARTMENT-based access (HR can manage the directory even without an admin role).
         var personas = new (string Name, string Email, string Role, string Title, string Dept)[]
         {
             ("Olivia Owner",      "owner@yugma.io",      "Owner",   "Founder & CEO",          "Executive"),
             ("Aditya Admin",      "admin@yugma.io",      "Admin",   "IT Administrator",       "Information Technology"),
             ("Maya Manager",      "manager@yugma.io",    "Manager", "Engineering Manager",    "Engineering"),
+            ("Hema Reddy",        "hr@yugma.io",         "Member",  "HR Manager",             "Human Resources"),
             ("Aaron Associate",   "associate@yugma.io",  "Member",  "Associate Engineer",     "Engineering")
         };
         foreach (var p in personas)

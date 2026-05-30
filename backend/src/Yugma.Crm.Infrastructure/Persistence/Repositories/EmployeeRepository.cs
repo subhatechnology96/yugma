@@ -19,9 +19,17 @@ internal sealed class EmployeeRepository(YugmaDbContext db) : IEmployeeRepositor
         PageRequest request,
         string? department,
         EmployeeStatus? status,
+        IReadOnlyCollection<Guid>? restrictToIds,
         CancellationToken ct)
     {
         IQueryable<Employee> q = db.Employees.AsNoTracking();
+
+        // Scope a non-privileged user to their own record (or a team lead to their team).
+        if (restrictToIds is not null)
+        {
+            var ids = restrictToIds.ToArray();
+            q = q.Where(e => ids.Contains(e.Id));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {

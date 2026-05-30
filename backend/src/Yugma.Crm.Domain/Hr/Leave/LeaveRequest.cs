@@ -2,7 +2,7 @@ using Yugma.Crm.Domain.Common;
 
 namespace Yugma.Crm.Domain.Hr.Leave;
 
-public enum LeaveType { Casual, Sick, Earned, CompOff, Unpaid }
+public enum LeaveType { Casual, Sick, Earned, CompOff, Unpaid, Paid, Special, Blocked, RestrictedHoliday }
 public enum LeaveStatus { Pending, Approved, Rejected, Cancelled }
 
 public sealed class LeaveRequest : Entity<Guid>, IAggregateRoot

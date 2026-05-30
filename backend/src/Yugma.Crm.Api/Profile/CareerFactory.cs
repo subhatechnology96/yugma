@@ -34,8 +34,40 @@ public static class CareerFactory
             e.Skills.Take(8).ToList());
 
         var timeline = BuildTimeline(e, roles, projects, achievements);
+        var hrPartners = BuildHrPartners(e, today);
 
-        return new CareerDto(summary, roles, managers, achievements, timeline, projects);
+        return new CareerDto(summary, roles, managers, achievements, timeline, projects, hrPartners);
+    }
+
+    // ---------------- HR business partners over time ----------------
+    private static readonly string[] HrbpPool =
+    {
+        "Niharika Joshi", "Hema Reddy", "Kavya Menon", "Rohit Sinha", "Ananya Pillai", "Farah Sheikh"
+    };
+
+    /// <summary>
+    /// The HR business partner(s) who supported this employee across their tenure — one for short
+    /// tenures, two (with a handover) for longer ones. Deterministic from the employee id.
+    /// </summary>
+    private static List<ManagerStintDto> BuildHrPartners(Employee e, DateOnly today)
+    {
+        var rng = Rng(e.Id, 71); // separate seed so it doesn't shift the project/achievement RNG
+        var tenureDays = today.DayNumber - e.JoinedAt.DayNumber;
+        var tenureYears = tenureDays / 365.25;
+        int count = tenureYears >= 3 ? 2 : 1;
+        int start = rng.Next(HrbpPool.Length);
+
+        var list = new List<ManagerStintDto>();
+        int dayCursor = e.JoinedAt.DayNumber;
+        for (int i = 0; i < count; i++)
+        {
+            var from = DateOnly.FromDayNumber(dayCursor);
+            dayCursor = i == count - 1 ? today.DayNumber : e.JoinedAt.DayNumber + tenureDays / 2;
+            DateOnly? to = i == count - 1 ? null : DateOnly.FromDayNumber(dayCursor);
+            var name = HrbpPool[(start + i) % HrbpPool.Length];
+            list.Add(new ManagerStintDto(name, i == count - 1 ? "Current HR partner" : "Former HR partner", from, to));
+        }
+        return list;
     }
 
     // ---------------- role progression ----------------

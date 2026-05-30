@@ -73,3 +73,13 @@ public sealed class CompetencyDefinition
     public string Name { get; set; } = default!;          // PK
     public int SortOrder { get; set; }
 }
+
+/// <summary>Company holiday calendar. Type = "Public" (government / mandatory) or "Optional" (RH).</summary>
+public sealed class Holiday
+{
+    public int Id { get; set; }
+    public DateOnly Date { get; set; }
+    public string Name { get; set; } = default!;
+    public string Type { get; set; } = "Public";          // "Public" | "Optional"
+    public int Year { get; set; }
+}

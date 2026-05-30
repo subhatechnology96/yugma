@@ -11,6 +11,7 @@ using Yugma.Crm.Domain.Hr.Leave;
 using Yugma.Crm.Domain.Hr.Org;
 using Yugma.Crm.Domain.Hr.Payroll;
 using Yugma.Crm.Domain.Hr.Profile;
+using Yugma.Crm.Domain.Hr.Tax;
 using Yugma.Crm.Domain.Hr.Performance;
 using Yugma.Crm.Domain.Hr.Recruiting;
 using Yugma.Crm.Domain.Identity;
@@ -39,6 +40,7 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
     public DbSet<EmployeeProject> EmployeeProjects => Set<EmployeeProject>();
     public DbSet<EmployeeProfile> EmployeeProfiles => Set<EmployeeProfile>();
+    public DbSet<InvestmentDeclaration> InvestmentDeclarations => Set<InvestmentDeclaration>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
     // CRM module
@@ -66,6 +68,7 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<PayrollSetting> PayrollSettings => Set<PayrollSetting>();
     public DbSet<TaxSlab> TaxSlabs => Set<TaxSlab>();
     public DbSet<CompetencyDefinition> Competencies => Set<CompetencyDefinition>();
+    public DbSet<Holiday> Holidays => Set<Holiday>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {

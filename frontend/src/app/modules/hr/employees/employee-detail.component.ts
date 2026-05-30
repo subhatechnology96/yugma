@@ -21,7 +21,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { HrAgentRailComponent } from '../agents/hr-agent-rail.component';
 import { EmployeeService } from '../services/employee.service';
 import { EmployeeProfileService } from '../services/employee-profile.service';
-import { AuthService } from '@core/services/auth.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 import { Employee } from '../models/hr.models';
 import {
   AttendanceOverview,
@@ -65,7 +65,6 @@ export class EmployeeDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly svc = inject(EmployeeService);
   private readonly profile = inject(EmployeeProfileService);
-  private readonly auth = inject(AuthService);
   private readonly messages = inject(MessageService);
 
   protected readonly loading = signal(true);
@@ -80,10 +79,8 @@ export class EmployeeDetailComponent implements OnInit {
   protected readonly career = signal<Career | null>(null);
 
   /** Admin / HR / manager can add & edit tracked projects. */
-  protected readonly canEdit = computed(() => {
-    const roles = (this.auth.user()?.roles ?? []).map((r) => r.toLowerCase());
-    return roles.some((r) => r === 'admin' || r === 'hr' || r === 'manager');
-  });
+  private readonly hrAccess = inject(HrAccessService);
+  protected readonly canEdit = computed(() => this.hrAccess.canManage());
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -153,6 +150,20 @@ export class EmployeeDetailComponent implements OnInit {
 
   usedPct(used: number, entitled: number): number {
     return entitled <= 0 ? 0 : Math.min(100, Math.round((used / entitled) * 100));
+  }
+
+  // ---- career: collapsible sections ----
+  protected readonly timelineOpen = signal(true);
+  protected readonly expandedProjects = signal<Set<string>>(new Set());
+
+  toggleTimeline() { this.timelineOpen.update((v) => !v); }
+  isProjectOpen(id: string): boolean { return this.expandedProjects().has(id); }
+  toggleProject(id: string) {
+    this.expandedProjects.update((set) => {
+      const next = new Set(set);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
   // ---- career helpers ----

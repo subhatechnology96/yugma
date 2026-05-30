@@ -1,3 +1,4 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Domain.Audit;
 using Yugma.Crm.Domain.Hr;
 using Yugma.Crm.Domain.Hr.Org;
@@ -16,16 +17,21 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/team")]
 [Produces("application/json")]
-[Authorize] // reads = any authenticated user; reassignment requires the HrManage policy
-public sealed class TeamController(YugmaDbContext db) : ControllerBase
+[Authorize] // reads scoped to self for non-privileged; reassignment requires HR/admin (CanManage)
+public sealed class TeamController(YugmaDbContext db, HrAccess access) : ControllerBase
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
+
+    private static IActionResult Forbidden(string message) =>
+        new ObjectResult(new { message }) { StatusCode = StatusCodes.Status403Forbidden };
 
     // ---------------- search ----------------
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string? q = null, [FromQuery] string? department = null, [FromQuery] string? manager = null, CancellationToken ct = default)
     {
+        var acc = await access.ResolveAsync(ct);
         var (employees, active) = await CurrentAsync(ct);
+        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
         var rows = employees.Select(e => Row(e, active)).AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(department)) rows = rows.Where(r => string.Equals(r.Department, department, StringComparison.OrdinalIgnoreCase));
@@ -150,10 +156,10 @@ public sealed class TeamController(YugmaDbContext db) : ControllerBase
     }
 
     // ---------------- assign / reassign (single + bulk) ----------------
-    [Authorize(Policy = "HrManage")]
     [HttpPost("assignments")]
     public async Task<IActionResult> Assign([FromBody] AssignBody body, CancellationToken ct)
     {
+        if ((await access.ResolveAsync(ct)).Restricted) return Forbidden("Only HR or an administrator can reassign reporting lines.");
         if (body.EmployeeIds.Length == 0) return BadRequest(new { message = "No employees selected." });
 
         var employees = await db.Employees.ToListAsync(ct);

@@ -19,6 +19,7 @@ import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { environment } from '@env/environment';
 import { HrAgentRailComponent } from '../agents/hr-agent-rail.component';
 import { EmployeeService } from '../services/employee.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 
 interface LeaveRow {
   id: string;
@@ -39,6 +40,7 @@ interface LeaveRow {
 interface TypeBalance {
   type: string;
   entitled: number;
+  carriedForward: number;
   used: number;
   pending: number;
   available: number;
@@ -51,11 +53,15 @@ interface EmployeeBalance {
   designation: string;
   avatarUrl?: string;
   totalEntitled: number;
+  totalCarriedForward: number;
   totalUsed: number;
   totalPending: number;
   totalAvailable: number;
   byType: TypeBalance[];
 }
+
+interface Holiday { date: string; name: string; type: string; }
+interface HolidaysResponse { year: number; publicHolidays: Holiday[]; optionalHolidays: Holiday[]; }
 
 interface LeaveSummary {
   pending: number;
@@ -108,6 +114,7 @@ interface LeaveSummary {
           <p-tab value="approved">Approved ({{ approved().length }})</p-tab>
           <p-tab value="rejected">Rejected ({{ rejected().length }})</p-tab>
           <p-tab value="balances">Balances</p-tab>
+          <p-tab value="holidays">Holidays</p-tab>
         </p-tablist>
         <p-tabpanels>
           <!-- ===================== PENDING ===================== -->
@@ -273,6 +280,64 @@ interface LeaveSummary {
               </ng-template>
             </p-table>
           </p-tabpanel>
+
+          <!-- ===================== HOLIDAYS ===================== -->
+          <p-tabpanel value="holidays">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
+              <!-- Government / public holidays -->
+              <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <i class="pi pi-flag text-brand-600"></i>
+                  <span class="section-title">Government holidays {{ holidays().year }}</span>
+                  <span class="ml-auto text-xs text-surface-500">{{ holidays().publicHolidays.length }} days · paid, company-wide</span>
+                </div>
+                <ul class="divide-y divide-surface-200 dark:divide-surface-800">
+                  @for (h of holidays().publicHolidays; track h.date) {
+                    <li class="py-2.5 flex items-center gap-3">
+                      <div class="w-12 text-center shrink-0">
+                        <div class="text-base font-semibold leading-none">{{ h.date | date: 'd' }}</div>
+                        <div class="text-[10px] uppercase text-surface-400">{{ h.date | date: 'MMM' }}</div>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate">{{ h.name }}</div>
+                        <div class="text-[11px] text-surface-500">{{ h.date | date: 'EEEE' }}</div>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+
+              <!-- Optional / restricted holidays -->
+              <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <i class="pi pi-calendar-plus text-amber-600"></i>
+                  <span class="section-title">Optional holidays (RH)</span>
+                  <span class="ml-auto text-xs text-surface-500">Choose up to {{ rhEntitlement() }} · {{ rhTaken() }} used</span>
+                </div>
+                <ul class="divide-y divide-surface-200 dark:divide-surface-800">
+                  @for (h of holidays().optionalHolidays; track h.date) {
+                    <li class="py-2.5 flex items-center gap-3">
+                      <div class="w-12 text-center shrink-0">
+                        <div class="text-base font-semibold leading-none">{{ h.date | date: 'd' }}</div>
+                        <div class="text-[10px] uppercase text-surface-400">{{ h.date | date: 'MMM' }}</div>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate">{{ h.name }}</div>
+                        <div class="text-[11px] text-surface-500">{{ h.date | date: 'EEEE' }}</div>
+                      </div>
+                      @if (rhStatus(h); as st) {
+                        <app-status-pill [tone]="statusTone(st)">{{ st | titlecase }}</app-status-pill>
+                      } @else {
+                        <button pButton size="small" [outlined]="true" icon="pi pi-check" label="Apply"
+                          [disabled]="rhTaken() >= rhEntitlement()" (click)="applyRh(h)"></button>
+                      }
+                    </li>
+                  }
+                </ul>
+                <p class="text-[11px] text-surface-400 mt-3"><i class="pi pi-info-circle mr-1"></i>Restricted holidays are applied like leave and need approval.</p>
+              </div>
+            </div>
+          </p-tabpanel>
         </p-tabpanels>
       </p-tabs>
     </div>
@@ -335,7 +400,9 @@ interface LeaveSummary {
             </div>
             <div class="ml-auto text-right">
               <div class="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{{ b.totalAvailable }}</div>
-              <div class="text-[11px] text-surface-500">days available of {{ b.totalEntitled }}</div>
+              <div class="text-[11px] text-surface-500">days available
+                @if (b.totalCarriedForward) { <span class="text-brand-600">(incl. {{ b.totalCarriedForward }} carried)</span> }
+              </div>
             </div>
           </div>
 
@@ -344,12 +411,18 @@ interface LeaveSummary {
               <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-3">
                 <div class="flex items-center justify-between mb-1.5">
                   <span class="text-sm font-medium">{{ t.type }}</span>
-                  <span class="text-xs text-surface-500">{{ t.available }} of {{ t.entitled }} left</span>
+                  <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ t.available }} left</span>
                 </div>
                 <div class="h-1.5 rounded-full bg-surface-100 dark:bg-surface-800 overflow-hidden">
-                  <div class="h-full rounded-full bg-brand-500" [style.width.%]="(t.used / t.entitled) * 100"></div>
+                  <div class="h-full rounded-full bg-brand-500" [style.width.%]="(t.used / (t.entitled + t.carriedForward || 1)) * 100"></div>
                 </div>
-                <div class="text-[11px] text-surface-500 mt-1.5">Used {{ t.used }} · Pending {{ t.pending }}</div>
+                <!-- Balance log: opening (carried) + accrued − used − pending -->
+                <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-surface-500 mt-2">
+                  <span>Carried fwd</span><span class="text-right tabular-nums" [class.text-brand-600]="t.carriedForward">+{{ t.carriedForward }}</span>
+                  <span>Accrued (yr)</span><span class="text-right tabular-nums">+{{ t.entitled }}</span>
+                  <span>Used</span><span class="text-right tabular-nums text-amber-600">−{{ t.used }}</span>
+                  <span>Pending</span><span class="text-right tabular-nums">−{{ t.pending }}</span>
+                </div>
               </div>
             }
           </div>
@@ -393,7 +466,7 @@ interface LeaveSummary {
     <p-dialog [(visible)]="policiesVisible" [modal]="true" [style]="{ width: '32rem' }" header="Leave policy" [draggable]="false" [dismissableMask]="true">
       <p class="text-xs text-surface-500 mb-3">Annual entitlement per employee (working days). Balances and validation use these figures.</p>
       <div class="space-y-2">
-        @for (p of policy; track p.type) {
+        @for (p of policy(); track p.type) {
           <div class="flex items-center justify-between rounded-lg border border-surface-200 dark:border-surface-800 px-3 py-2">
             <span class="text-sm font-medium">{{ p.type }}</span>
             <span class="text-sm tabular-nums">{{ p.entitled }} days / year</span>
@@ -408,6 +481,7 @@ export class LeaveComponent {
   private readonly http = inject(HttpClient);
   private readonly messages = inject(MessageService);
   private readonly employees = inject(EmployeeService);
+  private readonly hrAccess = inject(HrAccessService);
   private readonly base = `${environment.apiBaseUrl}/hr/leave`;
 
   protected readonly pending = signal<LeaveRow[]>([]);
@@ -415,23 +489,31 @@ export class LeaveComponent {
   protected readonly rejected = signal<LeaveRow[]>([]);
   protected readonly balances = signal<EmployeeBalance[]>([]);
   protected readonly summary = signal<LeaveSummary>({ pending: 0, approvedMtd: 0, rejectedMtd: 0, onLeaveToday: 0, balanceAvg: 0 });
+  protected readonly holidays = signal<HolidaysResponse>({ year: new Date().getFullYear(), publicHolidays: [], optionalHolidays: [] });
 
   protected readonly employeeOptions = computed(() =>
     this.employees.all().map((e) => ({ label: e.fullName, value: e.fullName }))
   );
 
-  protected readonly policy = [
-    { type: 'Casual', entitled: 12 },
-    { type: 'Sick', entitled: 12 },
-    { type: 'Earned', entitled: 18 },
-    { type: 'Comp-off', entitled: 6 }
-  ];
+  // Leave policy shown in the Policies dialog — derived from the live balance types when available.
+  protected readonly policy = computed(() => {
+    const types = this.balances()[0]?.byType;
+    if (types?.length) return types.map((t) => ({ type: t.type, entitled: t.entitled }));
+    return [
+      { type: 'Casual', entitled: 12 }, { type: 'Sick', entitled: 12 }, { type: 'Earned', entitled: 18 },
+      { type: 'Paid leave', entitled: 12 }, { type: 'Comp-off', entitled: 6 }, { type: 'Special leave', entitled: 5 },
+      { type: 'Blocked leave', entitled: 3 }, { type: 'Restricted Holiday', entitled: 2 }
+    ];
+  });
 
   readonly typeOptions = [
     { label: 'Casual', value: 'Casual' },
     { label: 'Sick', value: 'Sick' },
     { label: 'Earned', value: 'Earned' },
+    { label: 'Paid leave', value: 'Paid' },
     { label: 'Comp-off', value: 'CompOff' },
+    { label: 'Special leave', value: 'Special' },
+    { label: 'Blocked leave', value: 'Blocked' },
     { label: 'Unpaid', value: 'Unpaid' }
   ];
 
@@ -456,13 +538,43 @@ export class LeaveComponent {
       approved: this.http.get<LeaveRow[]>(this.base, { params: { status: 'Approved' } }),
       rejected: this.http.get<LeaveRow[]>(this.base, { params: { status: 'Rejected' } }),
       balances: this.http.get<EmployeeBalance[]>(`${this.base}/balances`),
-      summary: this.http.get<LeaveSummary>(`${this.base}/summary`)
+      summary: this.http.get<LeaveSummary>(`${this.base}/summary`),
+      holidays: this.http.get<HolidaysResponse>(`${this.base}/holidays`, { params: { year: new Date().getFullYear() } })
     }).subscribe((r) => {
       this.pending.set(r.pending);
       this.approved.set(r.approved);
       this.rejected.set(r.rejected);
       this.balances.set(r.balances);
       this.summary.set(r.summary);
+      this.holidays.set(r.holidays);
+    });
+  }
+
+  // ---- Optional / restricted holidays ----
+  private myName(): string { return this.hrAccess.access()?.name ?? this.employees.all()[0]?.fullName ?? ''; }
+
+  /** All of the current user's RH requests (any tab), keyed by date. */
+  private myRhRequests(): LeaveRow[] {
+    const me = this.myName();
+    return [...this.pending(), ...this.approved(), ...this.rejected()]
+      .filter((r) => r.type === 'RestrictedHoliday' && r.employee === me);
+  }
+  rhStatus(h: Holiday): string | null {
+    return this.myRhRequests().find((r) => r.from.slice(0, 10) === h.date)?.status ?? null;
+  }
+  rhEntitlement(): number {
+    const mine = this.balances().find((b) => b.name === this.myName());
+    return mine?.byType.find((t) => t.type === 'Restricted Holiday')?.entitled ?? 2;
+  }
+  rhTaken(): number {
+    return this.myRhRequests().filter((r) => r.status === 'pending' || r.status === 'approved').length;
+  }
+
+  applyRh(h: Holiday) {
+    const body = { employee: this.myName(), type: 'RestrictedHoliday', from: h.date, to: h.date, days: 1, reason: `Optional holiday: ${h.name}` };
+    this.http.post(this.base, body).subscribe({
+      next: () => { this.messages.add({ severity: 'success', summary: 'Optional holiday requested', detail: `${h.name} · ${h.date}` }); this.reload(); },
+      error: (e) => this.messages.add({ severity: 'error', summary: 'Could not apply', detail: e?.error?.message ?? 'Please try again.' })
     });
   }
 
@@ -560,7 +672,10 @@ export class LeaveComponent {
   }
 
   typeLabel(t: string): string {
-    return t === 'CompOff' ? 'Comp-off' : t;
+    return {
+      CompOff: 'Comp-off', Paid: 'Paid leave', Special: 'Special leave',
+      Blocked: 'Blocked leave', RestrictedHoliday: 'Restricted Holiday'
+    }[t] ?? t;
   }
   typeLabelFromValue(v: string): string {
     return this.typeOptions.find((o) => o.value === v)?.label ?? v;

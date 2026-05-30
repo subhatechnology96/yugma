@@ -1,3 +1,4 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Domain.Abstractions;
 using Yugma.Crm.Domain.Audit;
 using Yugma.Crm.Domain.Hr;
@@ -18,9 +19,11 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/hierarchy")]
 [Produces("application/json")]
-[Authorize] // reads = any authenticated user; mutations require the HrManage policy
-public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant) : ControllerBase
+[Authorize] // reads scoped to self for non-privileged; mutations require HR/admin (CanManage)
+public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant, HrAccess access) : ControllerBase
 {
+    private static IActionResult Forbidden(string message) =>
+        new ObjectResult(new { message }) { StatusCode = StatusCodes.Status403Forbidden };
     // ---------------- level catalog (loaded from the hierarchy_levels table) ----------------
     private Dictionary<int, (string Code, string Title)> _levels = new();
 
@@ -60,11 +63,13 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     public async Task<IActionResult> Employees([FromQuery] string? q = null, [FromQuery] string? department = null, [FromQuery] int? band = null, CancellationToken ct = default)
     {
         await EnsureLevelsAsync(ct);
+        var acc = await access.ResolveAsync(ct);
         var emps = await db.Employees.AsNoTracking().ToListAsync(ct);
         var directs = emps.Where(e => e.ManagerId != null).GroupBy(e => e.ManagerId!.Value).ToDictionary(g => g.Key, g => g.Count());
         var byId = emps.ToDictionary(e => e.Id);
 
         IEnumerable<Employee> rows = emps;
+        if (acc.VisibleIds is { } vis) rows = rows.Where(e => vis.Contains(e.Id)); // managers see all, team leads their team, others themselves
         if (!string.IsNullOrWhiteSpace(department)) rows = rows.Where(e => string.Equals(e.Department, department, StringComparison.OrdinalIgnoreCase));
         if (band is not null) rows = rows.Where(e => e.Band == band);
         if (!string.IsNullOrWhiteSpace(q))
@@ -129,6 +134,8 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     [HttpGet("employee/{id:guid}/trail")]
     public async Task<IActionResult> Trail(Guid id, CancellationToken ct)
     {
+        var acc = await access.ResolveAsync(ct);
+        if (!acc.CanSeeEmployee(id)) return Forbidden("You can only view your own or your team's reporting trail.");
         await EnsureLevelsAsync(ct);
         var emps = await db.Employees.AsNoTracking().ToListAsync(ct);
         var byId = emps.ToDictionary(e => e.Id);
@@ -161,10 +168,10 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     // ---------------- add employee ----------------
     public sealed record AddEmployeeBody(string Name, string? Code, string Email, string? Phone, string Department, string Designation, int Band, Guid? ManagerId, string? Location, string? ActedBy);
 
-    [Authorize(Policy = "HrManage")]
     [HttpPost("employee")]
     public async Task<IActionResult> AddEmployee([FromBody] AddEmployeeBody body, CancellationToken ct)
     {
+        if ((await access.ResolveAsync(ct)).Restricted) return Forbidden("Only HR or an administrator can add employees.");
         await EnsureLevelsAsync(ct);
         if (string.IsNullOrWhiteSpace(body.Name)) return BadRequest(new { error = "Name is required." });
         if (string.IsNullOrWhiteSpace(body.Email)) return BadRequest(new { error = "Email is required." });
@@ -205,10 +212,10 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     // ---------------- change band ----------------
     public sealed record BandBody(int Band, string? ActedBy);
 
-    [Authorize(Policy = "HrManage")]
     [HttpPost("employee/{id:guid}/band")]
     public async Task<IActionResult> SetBand(Guid id, [FromBody] BandBody body, CancellationToken ct)
     {
+        if ((await access.ResolveAsync(ct)).Restricted) return Forbidden("Only HR or an administrator can change bands.");
         await EnsureLevelsAsync(ct);
         if (body.Band is < 1 or > 10) return BadRequest(new { error = "Band must be 1..10." });
         var emp = await db.Employees.FirstOrDefaultAsync(e => e.Id == id, ct);
@@ -233,10 +240,10 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
         return Ok(new { ok, warning });
     }
 
-    [Authorize(Policy = "HrManage")]
     [HttpPost("employee/{id:guid}/manager")]
     public async Task<IActionResult> SetManagerEndpoint(Guid id, [FromBody] ManagerBody body, CancellationToken ct)
     {
+        if ((await access.ResolveAsync(ct)).Restricted) return Forbidden("Only HR or an administrator can change reporting lines.");
         var emps = await db.Employees.ToListAsync(ct);
         var emp = emps.FirstOrDefault(e => e.Id == id);
         if (emp is null) return NotFound();
@@ -274,10 +281,10 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     public sealed record BulkItem(string Code, int? Band, string? ManagerCode);
     public sealed record BulkBody(BulkItem[] Items, string? ActedBy);
 
-    [Authorize(Policy = "HrManage")]
     [HttpPost("bulk")]
     public async Task<IActionResult> Bulk([FromBody] BulkBody body, CancellationToken ct)
     {
+        if ((await access.ResolveAsync(ct)).Restricted) return Forbidden("Only HR or an administrator can bulk-update the hierarchy.");
         if (body.Items is null || body.Items.Length == 0) return BadRequest(new { error = "No rows provided." });
         var emps = await db.Employees.ToListAsync(ct);
         var byCode = emps.ToDictionary(e => e.Code, StringComparer.OrdinalIgnoreCase);

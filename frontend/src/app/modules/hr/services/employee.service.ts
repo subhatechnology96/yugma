@@ -12,6 +12,17 @@ interface ApiPaged<T> {
   pageSize: number;
 }
 
+export interface EmployeeAccess {
+  employeeId: string | null;
+  name: string | null;
+  department: string | null;
+  isHr: boolean;
+  canManageDirectory: boolean;
+  canAddEmployee: boolean;
+  isTeamLead: boolean;
+  scope: 'all' | 'team' | 'self';
+}
+
 @Injectable({ providedIn: 'root' })
 export class EmployeeService {
   private readonly http = inject(HttpClient);
@@ -53,6 +64,11 @@ export class EmployeeService {
 
   byId(id: string): Observable<Employee | undefined> {
     return this.http.get<Employee>(`${this.base}/${id}`);
+  }
+
+  /** What the current user may do on the Employees screen (HR/admin vs. own-record-only). */
+  access(): Observable<EmployeeAccess> {
+    return this.http.get<EmployeeAccess>(`${this.base}/access`);
   }
 
   create(input: Omit<Employee, 'id' | 'code'>): Observable<Employee> {

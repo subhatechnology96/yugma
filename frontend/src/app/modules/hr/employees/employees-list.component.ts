@@ -54,6 +54,10 @@ export class EmployeesListComponent implements OnInit {
   protected page = 1;
   protected pageSize = 10;
 
+  /** Access scope for the current user: HR/admins manage the directory; team leads see their team; others see their own row. */
+  protected readonly canAdd = signal(false);
+  protected readonly scope = signal<'all' | 'team' | 'self'>('all');
+
   protected query = '';
   protected departmentFilter: string | null = null;
   protected statusFilter: EmployeeStatus | null = null;
@@ -85,6 +89,10 @@ export class EmployeesListComponent implements OnInit {
   });
 
   ngOnInit() {
+    this.svc.access().subscribe((a) => {
+      this.canAdd.set(a.canAddEmployee);
+      this.scope.set(a.scope);
+    });
     this.load();
   }
 

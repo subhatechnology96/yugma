@@ -6,7 +6,8 @@ public sealed record CareerDto(
     IReadOnlyList<ManagerStintDto> Managers,
     IReadOnlyList<AchievementDto> Achievements,
     IReadOnlyList<CareerEventDto> Timeline,
-    IReadOnlyList<ProjectDto> Projects);
+    IReadOnlyList<ProjectDto> Projects,
+    IReadOnlyList<ManagerStintDto> HrPartners);
 
 public sealed record CareerSummaryDto(
     string Name,

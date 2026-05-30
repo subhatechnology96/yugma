@@ -160,4 +160,5 @@ export interface Career {
   achievements: Achievement[];
   timeline: CareerEvent[];
   projects: CareerProject[];
+  hrPartners: ManagerStint[];
 }

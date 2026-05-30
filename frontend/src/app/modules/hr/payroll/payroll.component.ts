@@ -36,6 +36,22 @@ interface PayrollRegister {
 interface PayrollMonth { month: number; label: string; employees: number; gross: number; net: number; statutory: number; tds: number; status: string; }
 interface PayrollYear { year: number; totals: { gross: number; net: number; statutory: number; tds: number; paidMonths: number; peakNet: number }; months: PayrollMonth[]; }
 
+// ---- Employee self-service (ESS) ----
+interface DeclItem { key: string; label: string; amount: number; }
+interface DeclSection { code: string; label: string; limit: number | null; declared: number; items: DeclItem[]; }
+interface DeclarationDto { year: number; sections: DeclSection[]; }
+interface RegimeResult { regime: string; grossIncome: number; standardDeduction: number; totalDeductions: number; taxableIncome: number; tax: number; deductionLines: { label: string; amount: number }[]; }
+interface CompareTaxDto { year: number; grossIncome: number; oldRegime: RegimeResult; newRegime: RegimeResult; recommended: string; saving: number; }
+interface MyPayroll {
+  year: number;
+  employee: { code: string; name: string; department: string; designation: string; ctcAnnual: number };
+  slip: PayrollRow | null;
+  salaryVsTax: { month: number; label: string; net: number; tax: number; status: string }[];
+  investmentUtilisation: { declared: number; limit: number; remaining: number };
+  annualTax: number;
+  paidDays: { month: number; label: string; days: number }[];
+}
+
 @Component({
   selector: 'app-payroll',
   standalone: true,
@@ -54,13 +70,180 @@ interface PayrollYear { year: number; totals: { gross: number; net: number; stat
     <app-hr-agent-rail [keys]="['active.payroll', 'active.copilot']" title="Payroll co-pilots" />
 
     <div class="card">
-      <p-tabs value="overview">
+      <p-tabs value="mypay">
         <p-tablist>
+          <p-tab value="mypay">My Payroll</p-tab>
+          <p-tab value="declaration">Investment Declaration</p-tab>
+          <p-tab value="comparetax">Compare Tax</p-tab>
           <p-tab value="overview">Overview</p-tab>
           <p-tab value="register">Register (employee-wise)</p-tab>
           <p-tab value="yearly">Yearly</p-tab>
         </p-tablist>
         <p-tabpanels>
+          <!-- ===================== MY PAYROLL (ESS) ===================== -->
+          <p-tabpanel value="mypay">
+            @if (myPay(); as m) {
+              <div class="p-2 space-y-4">
+                <!-- KPIs -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Annual CTC</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ m.employee.ctcAnnual | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Net pay / month</div>
+                    <div class="text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">₹{{ (m.slip?.net || 0) | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Tax deducted (YTD)</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ m.annualTax | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Investment declared</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ m.investmentUtilisation.declared | number: '1.0-0' }}</div>
+                    <div class="h-1.5 rounded-full bg-surface-100 dark:bg-surface-800 overflow-hidden mt-2">
+                      <div class="h-full rounded-full bg-brand-500" [style.width.%]="util(m)"></div>
+                    </div>
+                    <div class="text-[11px] text-surface-400 mt-1">of ₹{{ m.investmentUtilisation.limit | number: '1.0-0' }} eligible</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <!-- Salary vs Tax -->
+                  <div class="card p-4 lg:col-span-2">
+                    <div class="section-title mb-3">Salary vs tax — {{ m.year }}-{{ m.year + 1 }}</div>
+                    <p-table [value]="m.salaryVsTax" responsiveLayout="scroll" styleClass="!border-0 text-sm" [scrollable]="true" scrollHeight="320px">
+                      <ng-template pTemplate="header">
+                        <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                          <th class="!text-xs !uppercase !text-surface-500">Month</th>
+                          <th class="!text-xs !uppercase !text-surface-500 !text-right">Net pay</th>
+                          <th class="!text-xs !uppercase !text-surface-500 !text-right">Tax</th>
+                          <th class="!text-xs !uppercase !text-surface-500">Status</th>
+                        </tr>
+                      </ng-template>
+                      <ng-template pTemplate="body" let-r>
+                        <tr>
+                          <td>{{ r.label }}</td>
+                          <td class="text-right tabular-nums">{{ r.net ? ('₹' + (r.net | number: '1.0-0')) : '—' }}</td>
+                          <td class="text-right tabular-nums text-amber-600 dark:text-amber-400">{{ r.tax ? ('₹' + (r.tax | number: '1.0-0')) : '—' }}</td>
+                          <td><app-status-pill [tone]="statusTone(r.status)">{{ r.status | titlecase }}</app-status-pill></td>
+                        </tr>
+                      </ng-template>
+                    </p-table>
+                  </div>
+
+                  <!-- Salary breakup -->
+                  <div class="card p-4">
+                    <div class="section-title mb-3">Monthly salary breakup</div>
+                    @if (m.slip; as s) {
+                      <div class="space-y-1.5 text-sm">
+                        <div class="flex justify-between"><span class="text-surface-500">Basic</span><span class="tabular-nums">₹{{ s.basic | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between"><span class="text-surface-500">HRA</span><span class="tabular-nums">₹{{ s.hra | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between"><span class="text-surface-500">Special allowance</span><span class="tabular-nums">₹{{ s.special | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between"><span class="text-surface-500">Conveyance</span><span class="tabular-nums">₹{{ s.conveyance | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between font-semibold border-t border-surface-200 dark:border-surface-800 pt-1.5"><span>Gross</span><span class="tabular-nums">₹{{ s.gross | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between text-rose-600 dark:text-rose-400"><span>PF</span><span class="tabular-nums">−₹{{ s.pf | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between text-rose-600 dark:text-rose-400"><span>Professional tax</span><span class="tabular-nums">−₹{{ s.pt | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between text-rose-600 dark:text-rose-400"><span>TDS</span><span class="tabular-nums">−₹{{ s.tds | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between font-semibold border-t border-surface-200 dark:border-surface-800 pt-1.5 text-emerald-600 dark:text-emerald-400"><span>Net pay</span><span class="tabular-nums">₹{{ s.net | number: '1.0-0' }}</span></div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ===================== INVESTMENT DECLARATION ===================== -->
+          <p-tabpanel value="declaration">
+            @if (declaration(); as d) {
+              <div class="p-2 space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-lg font-semibold">Investment declaration · FY {{ d.year }}-{{ d.year + 1 }}</div>
+                    <div class="text-xs text-surface-500">Declare your tax-saving investments. Check the impact with Compare Tax before saving.</div>
+                  </div>
+                  <div class="flex gap-2">
+                    <button pButton severity="secondary" outlined icon="pi pi-calculator" label="Compare tax" (click)="loadCompare()"></button>
+                    <button pButton icon="pi pi-save" label="Save declaration" (click)="saveDeclaration()"></button>
+                  </div>
+                </div>
+
+                @for (s of d.sections; track s.code) {
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                      <span class="text-sm font-semibold">{{ s.label }}</span>
+                      @if (s.limit) {
+                        <span class="text-xs" [class.text-rose-600]="sectionTotal(s) > s.limit" [class.text-surface-500]="sectionTotal(s) <= s.limit">
+                          ₹{{ sectionTotal(s) | number: '1.0-0' }} / ₹{{ s.limit | number: '1.0-0' }} limit
+                        </span>
+                      }
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      @for (it of s.items; track it.key) {
+                        <div class="flex items-center gap-2">
+                          <label class="text-sm flex-1 min-w-0 truncate" [pTooltip]="it.label">{{ it.label }}</label>
+                          @if (it.key.endsWith('.metro')) {
+                            <p-select [options]="metroOptions" [(ngModel)]="declAmounts[it.key]" styleClass="!rounded-lg w-28" />
+                          } @else {
+                            <input type="number" min="0" [(ngModel)]="declAmounts[it.key]" class="p-inputtext !rounded-lg w-32 text-right tabular-nums" placeholder="0" />
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ===================== COMPARE TAX ===================== -->
+          <p-tabpanel value="comparetax">
+            <div class="p-2 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="text-lg font-semibold">Compare tax — Old vs New regime</div>
+                <button pButton severity="secondary" outlined icon="pi pi-refresh" label="Recompute" (click)="loadCompare()"></button>
+              </div>
+              @if (compare(); as c) {
+                <div class="rounded-xl p-4 flex items-center gap-3"
+                  [class]="c.recommended === 'New' ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-brand-50 dark:bg-brand-500/10'">
+                  <i class="pi pi-check-circle text-lg" [class.text-emerald-600]="c.recommended === 'New'" [class.text-brand-600]="c.recommended === 'Old'"></i>
+                  <div>
+                    <div class="text-sm font-semibold">{{ c.recommended }} regime is better for you</div>
+                    <div class="text-xs text-surface-500">You save approximately <b>₹{{ c.saving | number: '1.0-0' }}</b> in annual tax on a gross income of ₹{{ c.grossIncome | number: '1.0-0' }}.</div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  @for (r of [c.oldRegime, c.newRegime]; track r.regime) {
+                    <div class="rounded-xl border p-4"
+                      [class.border-emerald-300]="c.recommended === r.regime" [class.dark:border-emerald-700]="c.recommended === r.regime"
+                      [class.border-surface-200]="c.recommended !== r.regime" [class.dark:border-surface-800]="c.recommended !== r.regime">
+                      <div class="flex items-center justify-between mb-3">
+                        <span class="font-semibold">{{ r.regime }} regime</span>
+                        @if (c.recommended === r.regime) { <app-status-pill tone="success">Recommended</app-status-pill> }
+                      </div>
+                      <div class="space-y-1 text-sm">
+                        <div class="flex justify-between"><span class="text-surface-500">Gross income</span><span class="tabular-nums">₹{{ r.grossIncome | number: '1.0-0' }}</span></div>
+                        @for (l of r.deductionLines; track l.label) {
+                          <div class="flex justify-between text-surface-500"><span class="pl-3">− {{ l.label }}</span><span class="tabular-nums">₹{{ l.amount | number: '1.0-0' }}</span></div>
+                        }
+                        <div class="flex justify-between font-medium border-t border-surface-200 dark:border-surface-800 pt-1.5"><span>Taxable income</span><span class="tabular-nums">₹{{ r.taxableIncome | number: '1.0-0' }}</span></div>
+                        <div class="flex justify-between text-base font-semibold mt-1"><span>Annual tax</span><span class="tabular-nums" [class.text-emerald-600]="c.recommended === r.regime">₹{{ r.tax | number: '1.0-0' }}</span></div>
+                      </div>
+                    </div>
+                  }
+                </div>
+                <p class="text-[11px] text-surface-400"><i class="pi pi-info-circle mr-1"></i>Old regime reflects your saved declaration; the New regime allows only the standard deduction. Update the declaration tab and recompute to see the effect.</p>
+              } @else {
+                <div class="py-10 text-center text-surface-500">Click <b>Recompute</b> (or "Compare tax" on the declaration tab) to see your old vs new regime comparison.</div>
+              }
+            </div>
+          </p-tabpanel>
+
           <!-- ===================== OVERVIEW ===================== -->
           <p-tabpanel value="overview">
             @if (reg(); as d) {
@@ -374,6 +557,13 @@ export class PayrollComponent {
   protected readonly reg = signal<PayrollRegister | null>(null);
   protected readonly yr = signal<PayrollYear | null>(null);
 
+  // ESS state
+  protected readonly myPay = signal<MyPayroll | null>(null);
+  protected readonly declaration = signal<DeclarationDto | null>(null);
+  protected readonly compare = signal<CompareTaxDto | null>(null);
+  protected declAmounts: Record<string, number> = {};
+  protected readonly metroOptions = [{ label: 'Non-metro', value: 0 }, { label: 'Metro', value: 1 }];
+
   protected slipVisible = false;
   protected runVisible = false;
   protected readonly slip = signal<PayrollRow | null>(null);
@@ -395,12 +585,53 @@ export class PayrollComponent {
   constructor() {
     this.loadRegister();
     this.loadYear();
+    this.loadMyPay();
+    this.loadDeclaration();
   }
 
   loadRegister() {
     let params = new HttpParams().set('month', this.monthParam());
     if (this.search.trim()) params = params.set('search', this.search.trim());
     this.http.get<PayrollRegister>(`${this.base}/register`, { params }).subscribe((d) => this.reg.set(d));
+  }
+
+  // ---- ESS ----
+  loadMyPay() {
+    this.http.get<MyPayroll>(`${this.base}/me`).subscribe({ next: (d) => this.myPay.set(d), error: () => this.myPay.set(null) });
+  }
+  loadDeclaration() {
+    this.http.get<DeclarationDto>(`${this.base}/declaration`).subscribe((d) => {
+      this.declaration.set(d);
+      const map: Record<string, number> = {};
+      for (const s of d.sections) for (const it of s.items) map[it.key] = it.amount;
+      this.declAmounts = map;
+    });
+  }
+  loadCompare() {
+    this.http.get<CompareTaxDto>(`${this.base}/compare-tax`).subscribe({
+      next: (d) => this.compare.set(d),
+      error: () => this.messages.add({ severity: 'warn', summary: 'Unavailable', detail: 'No salary record linked to your account.' })
+    });
+  }
+  saveDeclaration() {
+    const d = this.declaration();
+    if (!d) return;
+    const items = Object.entries(this.declAmounts).map(([key, amount]) => ({ key, amount: Number(amount) || 0 }));
+    this.http.put(`${this.base}/declaration`, { year: d.year, items }).subscribe({
+      next: () => {
+        this.messages.add({ severity: 'success', summary: 'Declaration saved', detail: `FY ${d.year}-${d.year + 1}` });
+        this.loadDeclaration();
+        this.loadCompare();
+        this.loadMyPay();
+      },
+      error: () => this.messages.add({ severity: 'error', summary: 'Save failed', detail: 'Could not save your declaration.' })
+    });
+  }
+  sectionTotal(s: DeclSection): number {
+    return s.items.filter((i) => !i.key.endsWith('.metro')).reduce((sum, i) => sum + (Number(this.declAmounts[i.key]) || 0), 0);
+  }
+  util(m: MyPayroll): number {
+    return m.investmentUtilisation.limit ? Math.min(100, (m.investmentUtilisation.declared / m.investmentUtilisation.limit) * 100) : 0;
   }
 
   loadYear() {

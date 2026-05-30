@@ -18,6 +18,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { KpiCardComponent } from '@shared/components/kpi-card/kpi-card.component';
 import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { AuthService } from '@core/services/auth.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 import { environment } from '@env/environment';
 
 interface Level { rank: number; code: string; title: string; description: string; }
@@ -296,10 +297,9 @@ export class HierarchyManagementComponent {
   private readonly auth = inject(AuthService);
   private readonly base = `${environment.apiBaseUrl}/hr/hierarchy`;
 
-  protected readonly canManage = computed(() => {
-    const roles = (this.auth.user()?.roles ?? []).map((r) => r.toLowerCase());
-    return roles.some((r) => ['admin', 'hr', 'manager', 'super_admin', 'owner'].includes(r));
-  });
+  private readonly hrAccess = inject(HrAccessService);
+  // Department-aware: HR staff (and admins/owners) manage; everyone else is read-only / own-data.
+  protected readonly canManage = computed(() => this.hrAccess.canManage());
 
   protected readonly rows = signal<EmpRow[]>([]);
   protected readonly levels = signal<Level[]>([]);

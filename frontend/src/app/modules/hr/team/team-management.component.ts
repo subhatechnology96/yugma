@@ -16,6 +16,7 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { StatusPillComponent } from '@shared/components/status-pill/status-pill.component';
 import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { AuthService } from '@core/services/auth.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 import { environment } from '@env/environment';
 
 interface TeamRow {
@@ -209,10 +210,8 @@ export class TeamManagementComponent {
   private readonly auth = inject(AuthService);
   private readonly base = `${environment.apiBaseUrl}/hr/team`;
 
-  protected readonly canManage = computed(() => {
-    const roles = (this.auth.user()?.roles ?? []).map((r) => r.toLowerCase());
-    return roles.some((r) => ['admin', 'hr', 'manager', 'super_admin', 'owner'].includes(r));
-  });
+  private readonly hrAccess = inject(HrAccessService);
+  protected readonly canManage = computed(() => this.hrAccess.canManage());
 
   protected readonly rows = signal<TeamRow[]>([]);
   protected readonly tree = signal<TreeNode[]>([]);

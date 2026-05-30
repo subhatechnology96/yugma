@@ -19,6 +19,7 @@ builder.Host.UseSerilog((ctx, lc) => lc
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<Yugma.Crm.Api.Access.HrAccess>();
 
 builder.Services.AddCors(opt =>
 {

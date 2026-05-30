@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
-import { NAV_ITEMS, NavItem } from '../nav-items';
+import { NAV_ITEMS, NavItem, NavAccess } from '../nav-items';
 import { TenantService } from '@core/services/tenant.service';
+import { AuthService } from '@core/services/auth.service';
+import { HrAccessService } from '@core/services/hr-access.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -65,6 +67,7 @@ import { TenantService } from '@core/services/tenant.service';
                             <a
                               [routerLink]="child.route"
                               routerLinkActive="bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 font-semibold"
+                              [routerLinkActiveOptions]="{ exact: !!child.exact }"
                               class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition"
                             >
                               <i class="pi {{ child.icon }} text-sm"></i>
@@ -122,17 +125,64 @@ import { TenantService } from '@core/services/tenant.service';
 })
 export class SidebarComponent {
   protected readonly tenant = inject(TenantService);
+  private readonly auth = inject(AuthService);
+  private readonly hrAccess = inject(HrAccessService);
   readonly collapsed = input<boolean>(false);
   readonly toggleCollapse = output<void>();
 
   private readonly openGroups = signal<Set<string>>(new Set(['HR']));
 
+  /** Whether the current user may see a nav item with the given access requirement. */
+  private canSee(requires?: NavAccess): boolean {
+    if (!requires) return true;
+    const roles = (this.auth.user()?.roles ?? []).map((r) => r.toLowerCase());
+    const isAdmin = roles.some((r) => r === 'admin' || r === 'owner' || r === 'super_admin');
+    switch (requires) {
+      case 'admin':
+        return isAdmin;
+      case 'hrManage':
+        return this.hrAccess.canManage();
+      case 'teamLead':
+        return this.hrAccess.canManage() || this.hrAccess.isTeamLead();
+    }
+  }
+
+  /** Returns the item with its children filtered, or null if it should be hidden entirely. */
+  private filterItem(item: NavItem): NavItem | null {
+    if (!this.canSee(item.requires)) return null;
+    if (item.children?.length) {
+      const children = this.expandEmployees(item.children.filter((c) => this.canSee(c.requires)));
+      if (children.length === 0) return null; // parent with no visible children → hide
+      return { ...item, children };
+    }
+    return item;
+  }
+
+  /**
+   * Replaces the static "Employees" item with user-relative entries:
+   * associate → "My Profile"; manager and above → "My Profile" + "My Team" (the scoped directory).
+   */
+  private expandEmployees(children: NavItem[]): NavItem[] {
+    const acc = this.hrAccess.access();
+    const empId = acc?.employeeId ?? null;
+    const scope = acc?.scope ?? 'self';
+    return children.flatMap((c) => {
+      if (c.route !== '/hr/employees') return [c];
+      const out: NavItem[] = [];
+      if (empId) out.push({ label: 'My Profile', icon: 'pi-user', route: `/hr/employees/${empId}` });
+      if (scope !== 'self') out.push({ label: 'My Team', icon: 'pi-users', route: '/hr/employees', exact: true });
+      return out.length ? out : [c]; // fallback: no employee record → keep the directory
+    });
+  }
+
   readonly groups = computed(() => {
     const map = new Map<string, NavItem[]>();
     for (const item of NAV_ITEMS) {
-      const g = item.group ?? 'General';
+      const visible = this.filterItem(item);
+      if (!visible) continue;
+      const g = visible.group ?? 'General';
       const list = map.get(g) ?? [];
-      list.push(item);
+      list.push(visible);
       map.set(g, list);
     }
     return Array.from(map, ([name, items]) => ({ name, items }));

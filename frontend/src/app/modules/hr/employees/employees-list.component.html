@@ -4,10 +4,22 @@
   subtitle="Manage your workforce — directory, roles, employment status and compensation."
 >
   <button pButton severity="secondary" outlined icon="pi pi-download" label="Export" (click)="export()"></button>
-  <a routerLink="/hr/employees/new">
-    <button pButton icon="pi pi-plus" label="Add employee"></button>
-  </a>
+  @if (canAdd()) {
+    <a routerLink="/hr/employees/new">
+      <button pButton icon="pi pi-plus" label="Add employee"></button>
+    </a>
+  }
 </app-page-header>
+
+@if (scope() === 'self') {
+  <div class="card px-4 py-2.5 mb-4 text-xs bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300">
+    <i class="pi pi-user mr-1"></i>You're viewing your own record. Only HR and administrators can see and manage the full directory.
+  </div>
+} @else if (scope() === 'team') {
+  <div class="card px-4 py-2.5 mb-4 text-xs bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+    <i class="pi pi-users mr-1"></i>You're viewing your team (yourself and everyone who reports to you). HR and administrators see the full directory.
+  </div>
+}
 
 <app-hr-agent-rail
   [keys]="['active.engagement', 'active.copilot', 'separation.attrition', 'separation.retention']"

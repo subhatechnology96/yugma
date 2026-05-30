@@ -1,3 +1,4 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Api.Attendance;
 using Yugma.Crm.Domain.Hr.Attendance;
 using Yugma.Crm.Infrastructure.Persistence;
@@ -10,8 +11,8 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/attendance")]
 [Produces("application/json")]
-[AllowAnonymous]
-public sealed class AttendanceController(YugmaDbContext db) : ControllerBase
+[Authorize] // HR/admins see the whole board; everyone else sees only their own attendance
+public sealed class AttendanceController(YugmaDbContext db, HrAccess access) : ControllerBase
 {
     /// <summary>
     /// Company-wide daily attendance board for a date: KPI summary, department breakdown and the full
@@ -42,7 +43,11 @@ public sealed class AttendanceController(YugmaDbContext db) : ControllerBase
             overtimeThresholdHours ?? d.OvertimeThresholdHours,
             weekend);
 
+        var acc = await access.ResolveAsync(ct);
         var employees = await db.Employees.AsNoTracking().ToListAsync(ct);
+        // HR/admins see all; team leads see their team; everyone else sees only themselves.
+        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
+
         var overrides = await db.AttendanceOverrides.AsNoTracking()
             .Where(o => o.Date == day)
             .ToListAsync(ct);
@@ -66,6 +71,9 @@ public sealed class AttendanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpsertEntry([FromBody] AttendanceEntryBody body, CancellationToken ct)
     {
+        if (!(await access.ResolveAsync(ct)).CanManageEmployee(body.EmployeeId))
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only edit attendance for your team." });
+
         var allowed = new[] { "present", "late", "wfh", "leave", "absent" };
         var status = (body.Status ?? "").ToLowerInvariant();
         if (!allowed.Contains(status))
@@ -93,6 +101,9 @@ public sealed class AttendanceController(YugmaDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ResetEntry([FromQuery] Guid employeeId, [FromQuery] DateOnly date, CancellationToken ct)
     {
+        if (!(await access.ResolveAsync(ct)).CanManageEmployee(employeeId))
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only edit attendance for your team." });
+
         var existing = await db.AttendanceOverrides
             .FirstOrDefaultAsync(o => o.EmployeeId == employeeId && o.Date == date, ct);
         if (existing is not null)

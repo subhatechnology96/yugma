@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from '@core/guards/auth.guard';
 import { guestGuard } from '@core/guards/guest.guard';
+import { accessGuard } from '@core/guards/access.guard';
 
 export const APP_ROUTES: Routes = [
   {
@@ -28,17 +29,20 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'crm',
+        canActivate: [accessGuard('admin')],
         loadChildren: () => import('./modules/crm/crm.routes').then((m) => m.CRM_ROUTES),
         data: { breadcrumb: 'CRM', icon: 'pi-briefcase' }
       },
       {
         path: 'workflow',
+        canActivate: [accessGuard('admin')],
         loadChildren: () =>
           import('./modules/workflow/workflow.routes').then((m) => m.WORKFLOW_ROUTES),
         data: { breadcrumb: 'Workflows', icon: 'pi-sitemap' }
       },
       {
         path: 'reports',
+        canActivate: [accessGuard('hrManage')],
         loadChildren: () =>
           import('./modules/reports/reports.routes').then((m) => m.REPORTS_ROUTES),
         data: { breadcrumb: 'Reports & Analytics', icon: 'pi-chart-bar' }
@@ -53,12 +57,14 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'users',
+        canActivate: [accessGuard('admin')],
         loadComponent: () =>
           import('./modules/users/users.component').then((m) => m.UsersComponent),
         data: { breadcrumb: 'User Management', icon: 'pi-id-card' }
       },
       {
         path: 'it/provisioning',
+        canActivate: [accessGuard('admin')],
         loadComponent: () =>
           import('./modules/it/provisioning/provisioning.component').then(
             (m) => m.ProvisioningComponent
@@ -67,6 +73,7 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'configuration',
+        canActivate: [accessGuard('admin')],
         loadComponent: () =>
           import('./modules/configuration/configuration.component').then(
             (m) => m.ConfigurationComponent
@@ -75,6 +82,7 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'audit',
+        canActivate: [accessGuard('admin')],
         loadComponent: () =>
           import('./modules/audit/audit.component').then((m) => m.AuditComponent),
         data: { breadcrumb: 'Audit Logs', icon: 'pi-shield' }

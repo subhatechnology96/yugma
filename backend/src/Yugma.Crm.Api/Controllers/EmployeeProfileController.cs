@@ -1,8 +1,10 @@
+using Yugma.Crm.Api.Access;
 using Yugma.Crm.Api.Profile;
 using Yugma.Crm.Domain.Hr.Career;
 using Yugma.Crm.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Yugma.Crm.Api.Controllers;
@@ -14,10 +16,24 @@ namespace Yugma.Crm.Api.Controllers;
 [ApiController]
 [Route("api/hr/employees")]
 [Produces("application/json")]
-[AllowAnonymous]
-public sealed class EmployeeProfileController(YugmaDbContext db) : ControllerBase
+[Authorize] // a non-privileged user may only open their OWN profile
+public sealed class EmployeeProfileController(YugmaDbContext db, HrAccess access) : ControllerBase, IAsyncActionFilter
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
+
+    /// <summary>For restricted users, only allow profile routes whose employee id is their own.</summary>
+    [NonAction]
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        var acc = await access.ResolveAsync(context.HttpContext.RequestAborted);
+        if (context.ActionArguments.TryGetValue("id", out var raw) && raw is Guid id && !acc.CanSeeEmployee(id))
+        {
+            context.Result = new ObjectResult(new { message = "You can only view your own or your team's profile." })
+            { StatusCode = StatusCodes.Status403Forbidden };
+            return;
+        }
+        await next();
+    }
 
     [HttpGet("{id:guid}/overview")]
     [ProducesResponseType(typeof(EmployeeOverviewDto), StatusCodes.Status200OK)]
