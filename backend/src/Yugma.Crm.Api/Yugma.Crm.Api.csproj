@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Yugma.Crm.Api</RootNamespace>
+    <AssemblyName>Yugma.Crm.Api</AssemblyName>
+    <UserSecretsId>yugma-crm-api-7a3e-2026</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Yugma.Crm.Application\Yugma.Crm.Application.csproj" />
+    <ProjectReference Include="..\Yugma.Crm.Infrastructure\Yugma.Crm.Infrastructure.csproj" />
+    <ProjectReference Include="..\Yugma.Crm.Shared\Yugma.Crm.Shared.csproj" />
+  </ItemGroup>
+</Project>

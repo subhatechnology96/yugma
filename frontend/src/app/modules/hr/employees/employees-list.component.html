@@ -1,0 +1,138 @@
+<app-page-header
+  eyebrow="HR · People"
+  title="Employees"
+  subtitle="Manage your workforce — directory, roles, employment status and compensation."
+>
+  <button pButton severity="secondary" outlined icon="pi pi-download" label="Export" (click)="export()"></button>
+  <a routerLink="/hr/employees/new">
+    <button pButton icon="pi pi-plus" label="Add employee"></button>
+  </a>
+</app-page-header>
+
+<app-hr-agent-rail
+  [keys]="['active.engagement', 'active.copilot', 'separation.attrition', 'separation.retention']"
+  title="Workforce intelligence" />
+
+<!-- Mini KPIs -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+  <app-kpi-card
+    label="Total headcount" [value]="kpis().headcount" caption="Show all employees" icon="pi-users" tone="brand"
+    [interactive]="true" [active]="activeKpi() === 'all'" (cardClick)="selectKpi('all')" />
+  <app-kpi-card
+    label="Active" [value]="kpis().active" caption="Available to work today" icon="pi-check-circle" tone="emerald"
+    [interactive]="true" [active]="activeKpi() === 'active'" (cardClick)="selectKpi('active')" />
+  <app-kpi-card
+    label="On leave" [value]="kpis().onLeave" caption="Approved leave today" icon="pi-calendar" tone="amber"
+    [interactive]="true" [active]="activeKpi() === 'on-leave'" (cardClick)="selectKpi('on-leave')" />
+  <app-kpi-card
+    label="Avg. CTC (₹L)" [value]="kpis().avgCtc" format="1.1-1" caption="Sort by highest CTC" icon="pi-indian-rupee" tone="indigo"
+    [interactive]="true" [active]="activeKpi() === 'ctc'" (cardClick)="selectKpi('ctc')" />
+</div>
+
+<!-- Table card -->
+<div class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="p-4 border-b border-surface-200 dark:border-surface-800 flex flex-wrap items-center gap-3">
+    <span class="relative flex-1 min-w-[18rem]">
+      <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-surface-400"></i>
+      <input
+        pInputText
+        [(ngModel)]="query"
+        (keydown.enter)="onSearch()"
+        placeholder="Search by name, email, code, department…"
+        class="w-full !pl-10 !rounded-lg"
+      />
+    </span>
+    <p-select
+      [options]="departments()"
+      [(ngModel)]="departmentFilter"
+      (onChange)="load()"
+      placeholder="Department"
+      styleClass="!rounded-lg"
+    />
+    <p-select
+      [options]="statuses"
+      [(ngModel)]="statusFilter"
+      (onChange)="onStatusFilterChange()"
+      placeholder="Status"
+      styleClass="!rounded-lg"
+    />
+    <button pButton severity="secondary" outlined icon="pi pi-filter" label="More filters"></button>
+  </div>
+
+  <!-- Table -->
+  <p-table
+    [value]="rows()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="pageSize"
+    [totalRecords]="total()"
+    (onLazyLoad)="onLazyLoad($event)"
+    [loading]="loading()"
+    [rowHover]="true"
+    dataKey="id"
+    responsiveLayout="scroll"
+    styleClass="!border-0"
+  >
+    <ng-template pTemplate="header">
+      <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Employee</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Department</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Designation</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Location</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Joined</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Performance</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
+        <th class="!w-12"></th>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="body" let-emp>
+      <tr class="cursor-pointer" [routerLink]="['/hr/employees', emp.id]">
+        <td>
+          <div class="flex items-center gap-3">
+            <app-avatar [name]="emp.fullName" [image]="emp.avatarUrl" size="sm" />
+            <div class="min-w-0">
+              <div class="font-medium truncate">{{ emp.fullName }}</div>
+              <div class="text-xs text-surface-500">{{ emp.code }} · {{ emp.email }}</div>
+            </div>
+          </div>
+        </td>
+        <td>{{ emp.department }}</td>
+        <td class="text-sm">{{ emp.designation }}</td>
+        <td class="text-sm">{{ emp.location }}</td>
+        <td class="text-sm text-surface-500">{{ emp.joinedAt | date: 'mediumDate' }}</td>
+        <td>
+          <div class="flex items-center gap-0.5 text-amber-500">
+            @for (s of [1,2,3,4,5]; track s) {
+              <i class="pi text-xs"
+                [class.pi-star-fill]="s <= emp.performance"
+                [class.pi-star]="s > emp.performance"
+                [class.text-surface-300]="s > emp.performance"></i>
+            }
+          </div>
+        </td>
+        <td>
+          <app-status-pill [tone]="statusTone(emp.status)">{{ statusLabel(emp.status) }}</app-status-pill>
+        </td>
+        <td (click)="$event.stopPropagation()">
+          <button
+            pButton
+            text
+            rounded
+            icon="pi pi-ellipsis-v"
+            (click)="rowMenuRef.toggle($event)"
+            class="!text-surface-500"
+          ></button>
+          <p-menu #rowMenuRef [model]="rowMenu(emp)" [popup]="true" styleClass="!rounded-xl" />
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template pTemplate="emptymessage">
+      <tr>
+        <td colspan="8" class="py-10 text-center text-surface-500">
+          No employees match your filters.
+        </td>
+      </tr>
+    </ng-template>
+  </p-table>
+</div>

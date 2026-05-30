@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start *)",
+      "Bash(rm -f \"Yugma.Crm.Api/Controllers/MaterialsController.cs\" \"Yugma.Crm.Infrastructure/Persistence/Configurations/MaterialConfiguration.cs\" \"Yugma.Crm.Domain/Inventory/Material.cs\")",
+      "Bash(rmdir \"Yugma.Crm.Domain/Inventory\")",
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" https://localhost:7148/api/material)"
+    ]
+  }
+}

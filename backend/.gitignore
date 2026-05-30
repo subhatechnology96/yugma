@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+*.tsbuildinfo
+appsettings.*.local.json

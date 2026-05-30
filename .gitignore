@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# Yugma CRM — .gitignore
+# ---------------------------------------------------------------------------
+
+## .NET / backend build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userprefs
+.vs/
+*.lock.json
+project.lock.json
+artifacts/
+TestResults/
+[Dd]ebug/
+[Rr]elease/
+
+## ASP.NET Core user secrets (never commit real secrets)
+**/secrets.json
+
+## Node / Angular / frontend
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+## Editor / OS
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## Claude Code — keep shared project settings, ignore the local/personal overrides
+.claude/settings.local.json
+
+## Misc
+*.log
+*.tmp
+*.bak
+coverage/

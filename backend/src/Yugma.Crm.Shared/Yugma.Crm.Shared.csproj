@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Yugma.Crm.Shared</RootNamespace>
+    <AssemblyName>Yugma.Crm.Shared</AssemblyName>
+  </PropertyGroup>
+</Project>

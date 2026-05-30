@@ -1,0 +1,21 @@
+namespace Yugma.Crm.Application.Hr.Employees;
+
+public sealed record EmployeeDto(
+    Guid Id,
+    string Code,
+    string FullName,
+    string Email,
+    string Phone,
+    string Department,
+    string Designation,
+    string Location,
+    string? Manager,
+    string EmploymentType,
+    string Status,
+    DateOnly JoinedAt,
+    decimal CtcLakhs,
+    byte Performance,
+    IReadOnlyList<string> Skills,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    string? AvatarUrl);

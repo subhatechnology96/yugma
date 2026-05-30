@@ -1,0 +1,690 @@
+@if (loading()) {
+  <div class="card p-10 grid place-items-center text-surface-500">
+    <i class="pi pi-spin pi-spinner text-2xl"></i>
+  </div>
+} @else if (employee(); as emp) {
+  <app-page-header eyebrow="HR · Profile" [title]="emp.fullName" [subtitle]="emp.designation + ' · ' + emp.department">
+    <a routerLink="/hr/employees"><button pButton severity="secondary" outlined icon="pi pi-arrow-left" label="Back"></button></a>
+    <button pButton severity="secondary" outlined icon="pi pi-pencil" label="Edit"></button>
+    <button pButton icon="pi pi-send" label="Message"></button>
+  </app-page-header>
+
+  <app-hr-agent-rail
+    [keys]="['confirmation.probation', 'confirmation.feedback', 'active.performance', 'separation.attrition', 'separation.retention']"
+    title="Profile co-pilots" />
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Identity card -->
+    <div class="card p-6 lg:col-span-1 self-start">
+      <div class="flex flex-col items-center text-center">
+        <app-avatar [name]="emp.fullName" [image]="emp.avatarUrl" size="lg" />
+        <div class="mt-3 text-lg font-semibold">{{ emp.fullName }}</div>
+        <div class="text-sm text-surface-500">{{ emp.designation }}</div>
+        <div class="mt-2">
+          <app-status-pill [tone]="emp.status === 'active' ? 'success' : emp.status === 'on-leave' ? 'warn' : 'neutral'">
+            {{ emp.status === 'on-leave' ? 'On leave' : (emp.status | titlecase) }}
+          </app-status-pill>
+        </div>
+      </div>
+      <dl class="mt-6 space-y-3 text-sm">
+        <div class="flex justify-between"><dt class="text-surface-500">Employee code</dt><dd class="font-medium">{{ emp.code }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Email</dt><dd class="font-medium truncate ml-2">{{ emp.email }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Phone</dt><dd class="font-medium">{{ emp.phone }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Location</dt><dd class="font-medium">{{ emp.location }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Manager</dt><dd class="font-medium">{{ emp.manager ?? '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Joined</dt><dd class="font-medium">{{ emp.joinedAt | date: 'mediumDate' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">Employment</dt><dd class="font-medium">{{ emp.employmentType }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">CTC</dt><dd class="font-medium">₹{{ emp.ctcLakhs | number: '1.1-1' }} L</dd></div>
+      </dl>
+      <div class="mt-6">
+        <div class="section-title mb-2">Skills</div>
+        <div class="flex flex-wrap gap-1.5">
+          @for (s of emp.skills; track s) {
+            <span class="pill-info">{{ s }}</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card lg:col-span-2 overflow-hidden">
+      <p-tabs value="overview">
+        <p-tablist>
+          <p-tab value="overview">Overview</p-tab>
+          <p-tab value="attendance">Attendance</p-tab>
+          <p-tab value="leave">Leave</p-tab>
+          <p-tab value="payroll">Payroll</p-tab>
+          <p-tab value="documents">Documents</p-tab>
+          <p-tab value="career">Career</p-tab>
+        </p-tablist>
+        <p-tabpanels>
+          <!-- ================= OVERVIEW ================= -->
+          <p-tabpanel value="overview">
+            @if (overview(); as ov) {
+              <div class="p-2 space-y-5">
+                <!-- KPI tiles -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Performance</div>
+                    <div class="flex items-center gap-0.5 text-amber-500">
+                      @for (s of [1,2,3,4,5]; track s) {
+                        <i class="pi text-sm" [class.pi-star-fill]="s <= ov.performance" [class.pi-star]="s > ov.performance" [class.text-surface-300]="s > ov.performance"></i>
+                      }
+                    </div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Attendance</div>
+                    <div class="text-xl font-semibold">{{ ov.attendanceRatePct }}%</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Leave available</div>
+                    <div class="text-xl font-semibold">{{ ov.leaveAvailableDays }} <span class="text-sm text-surface-500">days</span></div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Last net pay</div>
+                    <div class="text-xl font-semibold tabular-nums">₹{{ ov.lastNetPay | number: '1.0-0' }}</div>
+                  </div>
+                </div>
+
+                <!-- About -->
+                <div>
+                  <div class="section-title mb-1">About</div>
+                  <p class="text-sm text-surface-600 dark:text-surface-300 leading-relaxed">{{ ov.about }}</p>
+                </div>
+
+                <!-- Employment + Personal -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="section-title mb-3">Employment</div>
+                    <dl class="space-y-2 text-sm">
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Grade / band</dt><dd class="font-medium">{{ ov.grade }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Work arrangement</dt><dd class="font-medium">{{ ov.worksite }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Reports to</dt><dd class="font-medium">{{ ov.manager }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Probation ends</dt><dd class="font-medium">{{ ov.probationEndsAt | date: 'mediumDate' }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Next review</dt><dd class="font-medium">{{ ov.nextReviewAt | date: 'mediumDate' }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Tenure</dt><dd class="font-medium">{{ ov.tenureYears }} yrs</dd></div>
+                    </dl>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="section-title mb-3">Personal</div>
+                    <dl class="space-y-2 text-sm">
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Date of birth</dt><dd class="font-medium">{{ ov.dateOfBirth | date: 'mediumDate' }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Blood group</dt><dd class="font-medium">{{ ov.bloodGroup }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Marital status</dt><dd class="font-medium">{{ ov.maritalStatus }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Personal email</dt><dd class="font-medium truncate ml-2">{{ ov.personalEmail }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Address</dt><dd class="font-medium text-right ml-2">{{ ov.address }}</dd></div>
+                    </dl>
+                  </div>
+                </div>
+
+                <!-- Emergency + Compliance -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="section-title mb-3">Emergency contact</div>
+                    <dl class="space-y-2 text-sm">
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Name</dt><dd class="font-medium">{{ ov.emergencyContactName }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Relationship</dt><dd class="font-medium">{{ ov.emergencyContactRelation }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Phone</dt><dd class="font-medium">{{ ov.emergencyContactPhone }}</dd></div>
+                    </dl>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="section-title mb-3">Statutory &amp; banking</div>
+                    <dl class="space-y-2 text-sm">
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">PAN</dt><dd class="font-medium font-mono">{{ ov.panMasked }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Aadhaar</dt><dd class="font-medium font-mono">{{ ov.aadhaarMasked }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Bank</dt><dd class="font-medium">{{ ov.bankName }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">Account</dt><dd class="font-medium font-mono">{{ ov.bankAccountMasked }}</dd></div>
+                      <div class="flex justify-between gap-2"><dt class="text-surface-500">UAN</dt><dd class="font-medium font-mono">{{ ov.uan }}</dd></div>
+                    </dl>
+                  </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                  <div class="section-title mb-3">Career timeline</div>
+                  <ol class="space-y-4">
+                    @for (t of ov.timeline; track t.title + t.date) {
+                      <li class="flex gap-3">
+                        <span class="w-8 h-8 shrink-0 rounded-full grid place-items-center bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300">
+                          <i class="pi {{ t.icon }} text-sm"></i>
+                        </span>
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium">{{ t.title }}</div>
+                          <div class="text-xs text-surface-500">{{ t.detail }}</div>
+                          <div class="text-[11px] text-surface-400 mt-0.5">{{ t.date | date: 'mediumDate' }}</div>
+                        </div>
+                      </li>
+                    }
+                  </ol>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ================= ATTENDANCE ================= -->
+          <p-tabpanel value="attendance">
+            @if (attendance(); as at) {
+              <div class="p-2 space-y-4">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Attendance rate</div>
+                    <div class="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{{ at.attendanceRatePct }}%</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Punctuality</div>
+                    <div class="text-xl font-semibold">{{ at.punctualityPct }}%</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Avg hours / day</div>
+                    <div class="text-xl font-semibold">{{ at.avgHours }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Window</div>
+                    <div class="text-xl font-semibold">{{ at.workingDays }} <span class="text-sm text-surface-500">days</span></div>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2 text-xs">
+                  <span class="pill-info">Present {{ at.present }}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">Late {{ at.late }}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300">WFH {{ at.wfh }}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">On leave {{ at.onLeave }}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300">Absent {{ at.absent }}</span>
+                </div>
+
+                <p-table [value]="at.records" responsiveLayout="scroll" styleClass="!border-0 text-sm">
+                  <ng-template pTemplate="header">
+                    <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Date</th>
+                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
+                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">In</th>
+                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Out</th>
+                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Hours</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template pTemplate="body" let-r>
+                    <tr>
+                      <td>{{ r.date | date: 'EEE, MMM d' }}</td>
+                      <td><app-status-pill [tone]="attendanceTone(r.status)">{{ attendanceLabel(r.status) }}</app-status-pill></td>
+                      <td class="text-surface-600 dark:text-surface-300">{{ r.inTime ?? '—' }}</td>
+                      <td class="text-surface-600 dark:text-surface-300">{{ r.outTime ?? '—' }}</td>
+                      <td class="text-right tabular-nums">{{ r.hours ? (r.hours | number: '1.1-1') : '—' }}</td>
+                    </tr>
+                  </ng-template>
+                </p-table>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ================= LEAVE ================= -->
+          <p-tabpanel value="leave">
+            @if (leave(); as lv) {
+              <div class="p-2 space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Entitled</div>
+                    <div class="text-xl font-semibold">{{ lv.totalEntitled }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Used</div>
+                    <div class="text-xl font-semibold text-amber-600 dark:text-amber-400">{{ lv.totalUsed }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Available</div>
+                    <div class="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{{ lv.totalAvailable }}</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  @for (b of lv.balances; track b.type) {
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">{{ b.type }}</span>
+                        <span class="text-xs text-surface-500">{{ b.available }} of {{ b.entitled }} left</span>
+                      </div>
+                      <div class="h-2 rounded-full bg-surface-100 dark:bg-surface-800 overflow-hidden">
+                        <div class="h-full rounded-full bg-brand-500" [style.width.%]="usedPct(b.used, b.entitled)"></div>
+                      </div>
+                      <div class="text-[11px] text-surface-500 mt-1.5">Used {{ b.used }} · Pending {{ b.pending }}</div>
+                    </div>
+                  }
+                </div>
+
+                <div>
+                  <div class="section-title mb-2">Leave history</div>
+                  <p-table [value]="lv.history" responsiveLayout="scroll" styleClass="!border-0 text-sm">
+                    <ng-template pTemplate="header">
+                      <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Dates</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Type</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Days</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Reason</th>
+                      </tr>
+                    </ng-template>
+                    <ng-template pTemplate="body" let-l>
+                      <tr>
+                        <td class="whitespace-nowrap">{{ l.from | date: 'MMM d' }} – {{ l.to | date: 'MMM d' }}</td>
+                        <td>{{ l.type }}</td>
+                        <td class="text-right tabular-nums">{{ l.days }}</td>
+                        <td><app-status-pill [tone]="leaveTone(l.status)">{{ l.status }}</app-status-pill></td>
+                        <td class="text-surface-500 max-w-[16rem] truncate" [pTooltip]="l.reason">{{ l.reason }}</td>
+                      </tr>
+                    </ng-template>
+                  </p-table>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ================= PAYROLL ================= -->
+          <p-tabpanel value="payroll">
+            @if (payroll(); as pr) {
+              <div class="p-2 space-y-4">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Annual CTC</div>
+                    <div class="text-lg font-semibold tabular-nums">₹{{ pr.ctcAnnual | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Monthly net</div>
+                    <div class="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">₹{{ pr.monthlyNet | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">YTD net</div>
+                    <div class="text-lg font-semibold tabular-nums">₹{{ pr.ytdNet | number: '1.0-0' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">YTD tax</div>
+                    <div class="text-lg font-semibold tabular-nums">₹{{ pr.ytdTax | number: '1.0-0' }}</div>
+                  </div>
+                </div>
+
+                <!-- Latest payslip breakdown -->
+                <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="section-title">Latest payslip · {{ pr.latest.period }}</div>
+                    <app-status-pill tone="success">{{ pr.latest.status }}</app-status-pill>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div class="space-y-2">
+                      <div class="text-xs uppercase tracking-wider text-surface-400">Earnings</div>
+                      <div class="flex justify-between"><span class="text-surface-500">Basic</span><span class="tabular-nums">₹{{ pr.latest.basic | number: '1.0-0' }}</span></div>
+                      <div class="flex justify-between"><span class="text-surface-500">HRA</span><span class="tabular-nums">₹{{ pr.latest.hra | number: '1.0-0' }}</span></div>
+                      <div class="flex justify-between"><span class="text-surface-500">Special allowance</span><span class="tabular-nums">₹{{ pr.latest.specialAllowance | number: '1.0-0' }}</span></div>
+                      <div class="flex justify-between"><span class="text-surface-500">Conveyance</span><span class="tabular-nums">₹{{ pr.latest.conveyance | number: '1.0-0' }}</span></div>
+                      @if (pr.latest.bonus > 0) {
+                        <div class="flex justify-between"><span class="text-surface-500">Bonus</span><span class="tabular-nums">₹{{ pr.latest.bonus | number: '1.0-0' }}</span></div>
+                      }
+                      <div class="flex justify-between font-semibold border-t border-surface-200 dark:border-surface-800 pt-1.5"><span>Gross</span><span class="tabular-nums">₹{{ pr.latest.grossEarnings | number: '1.0-0' }}</span></div>
+                    </div>
+                    <div class="space-y-2">
+                      <div class="text-xs uppercase tracking-wider text-surface-400">Deductions</div>
+                      <div class="flex justify-between"><span class="text-surface-500">Provident fund</span><span class="tabular-nums">₹{{ pr.latest.providentFund | number: '1.0-0' }}</span></div>
+                      <div class="flex justify-between"><span class="text-surface-500">Professional tax</span><span class="tabular-nums">₹{{ pr.latest.professionalTax | number: '1.0-0' }}</span></div>
+                      <div class="flex justify-between"><span class="text-surface-500">Income tax (TDS)</span><span class="tabular-nums">₹{{ pr.latest.incomeTax | number: '1.0-0' }}</span></div>
+                      @if (pr.latest.otherDeductions > 0) {
+                        <div class="flex justify-between"><span class="text-surface-500">Other</span><span class="tabular-nums">₹{{ pr.latest.otherDeductions | number: '1.0-0' }}</span></div>
+                      }
+                      <div class="flex justify-between font-semibold border-t border-surface-200 dark:border-surface-800 pt-1.5"><span>Total</span><span class="tabular-nums">₹{{ pr.latest.totalDeductions | number: '1.0-0' }}</span></div>
+                    </div>
+                  </div>
+                  <div class="mt-3 flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2.5">
+                    <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300">Net pay</span>
+                    <span class="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">₹{{ pr.latest.netPay | number: '1.0-0' }}</span>
+                  </div>
+                </div>
+
+                <!-- Payslip history -->
+                <div>
+                  <div class="section-title mb-2">Payslip history</div>
+                  <p-table [value]="pr.payslips" responsiveLayout="scroll" styleClass="!border-0 text-sm">
+                    <ng-template pTemplate="header">
+                      <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Period</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Pay date</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Gross</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Deductions</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Net</th>
+                        <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
+                        <th class="!w-10"></th>
+                      </tr>
+                    </ng-template>
+                    <ng-template pTemplate="body" let-p>
+                      <tr>
+                        <td class="font-medium">{{ p.period }}</td>
+                        <td class="text-surface-500">{{ p.payDate | date: 'mediumDate' }}</td>
+                        <td class="text-right tabular-nums">₹{{ p.grossEarnings | number: '1.0-0' }}</td>
+                        <td class="text-right tabular-nums text-surface-500">₹{{ p.totalDeductions | number: '1.0-0' }}</td>
+                        <td class="text-right tabular-nums font-medium">₹{{ p.netPay | number: '1.0-0' }}</td>
+                        <td><app-status-pill tone="success">{{ p.status }}</app-status-pill></td>
+                        <td><button pButton text rounded size="small" icon="pi pi-download" pTooltip="Download payslip" class="!text-surface-500"></button></td>
+                      </tr>
+                    </ng-template>
+                  </p-table>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ================= DOCUMENTS ================= -->
+          <p-tabpanel value="documents">
+            @if (documents(); as docs) {
+              @if (docs.length) {
+                <div class="p-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  @for (d of docs; track d.id) {
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4 flex items-center gap-3">
+                      <span class="w-10 h-10 shrink-0 rounded-lg grid place-items-center bg-surface-100 dark:bg-surface-800 text-surface-500">
+                        <i class="pi {{ docIcon(d.fileType) }} text-lg"></i>
+                      </span>
+                      <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium truncate">{{ d.name }}</div>
+                        <div class="text-[11px] text-surface-500">
+                          {{ d.category }} · {{ d.fileType }} · {{ fileSize(d.sizeBytes) }} · {{ d.uploadedAt | date: 'mediumDate' }}
+                        </div>
+                        @if (d.expiresAt) {
+                          <div class="text-[11px] text-surface-400">Expires {{ d.expiresAt | date: 'mediumDate' }}</div>
+                        }
+                      </div>
+                      <app-status-pill [tone]="docTone(d.status)">{{ d.status }}</app-status-pill>
+                      <button pButton text rounded size="small" icon="pi pi-download" pTooltip="Download" class="!text-surface-500"></button>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <app-empty-state title="No documents" description="Offer letter, IDs, certifications and agreements will appear here." icon="pi-file" />
+              }
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+
+          <!-- ================= CAREER ================= -->
+          <p-tabpanel value="career">
+            @if (career(); as c) {
+              <div class="p-2 space-y-5">
+                <!-- summary tiles -->
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Tenure</div>
+                    <div class="text-xl font-semibold">{{ c.summary.tenureYears }} <span class="text-sm text-surface-500">yrs</span></div>
+                    <div class="text-[11px] text-surface-400 mt-0.5">since {{ c.summary.joinedAt | date: 'MMM y' }}</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Projects</div>
+                    <div class="text-xl font-semibold">{{ c.summary.totalProjects }}</div>
+                    <div class="text-[11px] text-surface-400 mt-0.5">{{ c.summary.completedProjects }} done · {{ c.summary.ongoingProjects }} ongoing</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Promotions</div>
+                    <div class="text-xl font-semibold">{{ c.summary.promotions }}</div>
+                    <div class="text-[11px] text-surface-400 mt-0.5">role changes</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Awards</div>
+                    <div class="text-xl font-semibold text-amber-600 dark:text-amber-400">{{ c.summary.awards }}</div>
+                    <div class="text-[11px] text-surface-400 mt-0.5">recognitions</div>
+                  </div>
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                    <div class="text-xs text-surface-500 mb-1">Avg project rating</div>
+                    <div class="text-xl font-semibold">{{ c.summary.avgProjectRating | number: '1.1-1' }}<span class="text-sm text-surface-500">/5</span></div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <!-- role progression + timeline -->
+                  <div class="lg:col-span-2 space-y-4">
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="section-title mb-3">Role progression</div>
+                      <ol class="relative border-l border-surface-200 dark:border-surface-800 ml-3 space-y-4">
+                        @for (r of c.roleHistory; track r.from) {
+                          <li class="ml-4">
+                            <span class="absolute -left-[7px] w-3 h-3 rounded-full" [class]="r.to ? 'bg-surface-300 dark:bg-surface-600' : 'bg-brand-500'"></span>
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="text-sm font-semibold">{{ r.title }}</span>
+                              <span class="text-[11px] px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-800 text-surface-500">{{ r.level }}</span>
+                            </div>
+                            <div class="text-[11px] text-surface-500">{{ r.from | date: 'MMM y' }} – {{ r.to ? (r.to | date: 'MMM y') : 'Present' }} · {{ r.years }} yrs · reported to {{ r.manager }}</div>
+                          </li>
+                        }
+                      </ol>
+                    </div>
+
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="section-title mb-3">Career timeline</div>
+                      <ol class="space-y-3">
+                        @for (ev of c.timeline; track ev.date + ev.title) {
+                          <li class="flex gap-3">
+                            <span class="w-8 h-8 shrink-0 rounded-full grid place-items-center" [class]="eventIconBg(ev.type)">
+                              <i class="pi {{ ev.icon }} text-sm"></i>
+                            </span>
+                            <div class="min-w-0">
+                              <div class="text-sm font-medium">{{ ev.title }}</div>
+                              <div class="text-xs text-surface-500">{{ ev.detail }}</div>
+                              <div class="text-[11px] text-surface-400 mt-0.5">{{ ev.date | date: 'mediumDate' }}</div>
+                            </div>
+                          </li>
+                        }
+                      </ol>
+                    </div>
+                  </div>
+
+                  <!-- achievements + managers -->
+                  <div class="space-y-4">
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="section-title mb-3">Achievements</div>
+                      <ul class="space-y-3">
+                        @for (a of c.achievements; track a.date + a.title) {
+                          <li class="flex gap-3">
+                            <i class="pi pi-trophy text-amber-500 mt-0.5"></i>
+                            <div>
+                              <div class="text-sm font-medium">{{ a.title }}</div>
+                              <div class="text-[11px] text-surface-500">{{ a.description }}</div>
+                              <div class="text-[11px] text-surface-400">{{ a.date | date: 'mediumDate' }}</div>
+                            </div>
+                          </li>
+                        }
+                        @if (!c.achievements.length) { <li class="text-sm text-surface-400">No awards yet.</li> }
+                      </ul>
+                    </div>
+                    <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                      <div class="section-title mb-3">Managers over time</div>
+                      <ul class="space-y-2.5">
+                        @for (m of c.managers; track m.from) {
+                          <li class="flex items-center gap-3">
+                            <app-avatar [name]="m.name" size="sm" />
+                            <div class="min-w-0">
+                              <div class="text-sm font-medium truncate">{{ m.name }}</div>
+                              <div class="text-[11px] text-surface-500">{{ m.relationship }} · {{ m.from | date: 'MMM y' }} – {{ m.to ? (m.to | date: 'MMM y') : 'Present' }}</div>
+                            </div>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- projects -->
+                <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="section-title">Projects ({{ c.projects.length }})</div>
+                    @if (canEdit()) {
+                      <button pButton size="small" icon="pi pi-plus" label="Add project" (click)="openAddProject()"></button>
+                    }
+                  </div>
+                  <p-table [value]="c.projects" responsiveLayout="scroll" [rowHover]="true" [paginator]="c.projects.length > 10" [rows]="10">
+                    <ng-template pTemplate="header">
+                      <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                        <th class="!text-xs !uppercase !text-surface-500">Project</th>
+                        <th class="!text-xs !uppercase !text-surface-500">Role</th>
+                        <th class="!text-xs !uppercase !text-surface-500">Manager</th>
+                        <th class="!text-xs !uppercase !text-surface-500">Timeline</th>
+                        <th class="!text-xs !uppercase !text-surface-500">Rating</th>
+                        <th class="!text-xs !uppercase !text-surface-500">Status</th>
+                      </tr>
+                    </ng-template>
+                    <ng-template pTemplate="body" let-p>
+                      <tr class="cursor-pointer" (click)="openProject(p)">
+                        <td>
+                          <div class="font-medium flex items-center gap-1.5">
+                            {{ p.name }}
+                            @if (p.isCustom) { <i class="pi pi-user-edit text-[10px] text-brand-500" pTooltip="Added by you"></i> }
+                          </div>
+                          <div class="text-[11px] text-surface-500">{{ p.domain }} · {{ p.teamSize }} people</div>
+                        </td>
+                        <td class="text-sm">{{ p.role }}</td>
+                        <td class="text-sm text-surface-500">{{ p.manager }}</td>
+                        <td class="text-sm whitespace-nowrap">{{ p.startDate | date: 'MMM y' }} – {{ p.endDate ? (p.endDate | date: 'MMM y') : 'Present' }} <span class="text-[11px] text-surface-400">· {{ p.durationMonths }}mo</span></td>
+                        <td>
+                          <div class="flex items-center gap-0.5 text-amber-500">
+                            @for (s of [1,2,3,4,5]; track s) {
+                              <i class="pi text-[10px]" [class.pi-star-fill]="s <= p.rating" [class.pi-star]="s > p.rating" [class.text-surface-300]="s > p.rating"></i>
+                            }
+                          </div>
+                        </td>
+                        <td><app-status-pill [tone]="projectTone(p.status)">{{ p.status }}</app-status-pill></td>
+                      </tr>
+                    </ng-template>
+                  </p-table>
+                </div>
+              </div>
+            } @else {
+              <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
+            }
+          </p-tabpanel>
+        </p-tabpanels>
+      </p-tabs>
+    </div>
+  </div>
+} @else {
+  <app-empty-state title="Employee not found" description="The record you're looking for may have been removed." icon="pi-exclamation-triangle">
+    <a routerLink="/hr/employees"><button pButton label="Back to list"></button></a>
+  </app-empty-state>
+}
+
+<!-- ================= Project detail dialog ================= -->
+<p-dialog [(visible)]="projectVisible" [modal]="true" [style]="{ width: '36rem' }" [header]="selectedProject()?.name || ''" [draggable]="false" [dismissableMask]="true">
+  @if (selectedProject(); as p) {
+    <div class="space-y-4 pt-1">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs text-surface-500">{{ p.domain }}</div>
+          <div class="flex items-center gap-0.5 text-amber-500 mt-1">
+            @for (s of [1,2,3,4,5]; track s) {
+              <i class="pi text-xs" [class.pi-star-fill]="s <= p.rating" [class.pi-star]="s > p.rating" [class.text-surface-300]="s > p.rating"></i>
+            }
+          </div>
+        </div>
+        <app-status-pill [tone]="projectTone(p.status)">{{ p.status }}</app-status-pill>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div><dt class="text-[11px] uppercase text-surface-400">Role</dt><dd class="font-medium">{{ p.role }}</dd></div>
+        <div><dt class="text-[11px] uppercase text-surface-400">Manager</dt><dd class="font-medium">{{ p.manager }}</dd></div>
+        <div><dt class="text-[11px] uppercase text-surface-400">Timeline</dt><dd class="font-medium">{{ p.startDate | date: 'mediumDate' }} – {{ p.endDate ? (p.endDate | date: 'mediumDate') : 'Present' }}</dd></div>
+        <div><dt class="text-[11px] uppercase text-surface-400">Duration / team</dt><dd class="font-medium">{{ p.durationMonths }} months · {{ p.teamSize }} people</dd></div>
+      </dl>
+
+      @if (p.responsibilities.length) {
+        <div>
+          <div class="text-[11px] uppercase text-surface-400 mb-1">Responsibilities</div>
+          <ul class="list-disc ml-5 text-sm space-y-0.5">
+            @for (r of p.responsibilities; track r) { <li>{{ r }}</li> }
+          </ul>
+        </div>
+      }
+      @if (p.outcome) {
+        <div><div class="text-[11px] uppercase text-surface-400 mb-1">Outcome</div><p class="text-sm">{{ p.outcome }}</p></div>
+      }
+      @if (p.feedback) {
+        <div class="rounded-lg bg-surface-50 dark:bg-surface-900/40 p-3"><div class="text-[11px] uppercase text-surface-400 mb-1">Manager feedback</div><p class="text-sm italic">“{{ p.feedback }}”</p></div>
+      }
+      @if (p.skills.length) {
+        <div>
+          <div class="text-[11px] uppercase text-surface-400 mb-1">Skills</div>
+          <div class="flex flex-wrap gap-1.5">@for (s of p.skills; track s) { <span class="pill-info">{{ s }}</span> }</div>
+        </div>
+      }
+      @if (p.achievements.length) {
+        <div class="flex flex-wrap gap-1.5">@for (a of p.achievements; track a) { <span class="inline-flex items-center gap-1 text-xs text-amber-600"><i class="pi pi-trophy text-[10px]"></i>{{ a }}</span> }</div>
+      }
+    </div>
+  }
+  <ng-template pTemplate="footer">
+    @if (selectedProject()?.isCustom && canEdit()) {
+      <button pButton severity="danger" text label="Delete" icon="pi pi-trash" (click)="deleteProject(selectedProject()!)"></button>
+      <button pButton severity="secondary" outlined label="Edit" icon="pi pi-pencil" (click)="editProject(selectedProject()!)"></button>
+    }
+    <button pButton label="Close" (click)="projectVisible = false"></button>
+  </ng-template>
+</p-dialog>
+
+<!-- ================= Add / edit project dialog ================= -->
+<p-dialog [(visible)]="formVisible" [modal]="true" [style]="{ width: '40rem' }" [header]="editId ? 'Edit project' : 'Add project'" [draggable]="false" [dismissableMask]="true">
+  <div class="grid grid-cols-2 gap-4 pt-2">
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Project name</label>
+      <input pInputText [(ngModel)]="pform.name" class="w-full mt-1 !rounded-lg" placeholder="e.g. Payments Revamp" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Domain</label>
+      <input pInputText [(ngModel)]="pform.domain" class="w-full mt-1 !rounded-lg" placeholder="e.g. Payments" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Your role</label>
+      <input pInputText [(ngModel)]="pform.role" class="w-full mt-1 !rounded-lg" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Manager</label>
+      <input pInputText [(ngModel)]="pform.manager" class="w-full mt-1 !rounded-lg" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Status</label>
+      <p-select [options]="statusOptions" [(ngModel)]="pform.status" styleClass="w-full mt-1 !rounded-lg" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Start</label>
+      <input type="date" [(ngModel)]="pform.startDate" class="w-full mt-1 p-inputtext !rounded-lg" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">End (blank = ongoing)</label>
+      <input type="date" [(ngModel)]="pform.endDate" class="w-full mt-1 p-inputtext !rounded-lg" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Rating</label>
+      <p-inputNumber [(ngModel)]="pform.rating" [min]="1" [max]="5" styleClass="w-full mt-1" inputStyleClass="!rounded-lg w-full" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Team size</label>
+      <p-inputNumber [(ngModel)]="pform.teamSize" [min]="1" [max]="500" styleClass="w-full mt-1" inputStyleClass="!rounded-lg w-full" />
+    </div>
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Responsibilities (one per line)</label>
+      <textarea pTextarea [(ngModel)]="pform.responsibilities" rows="3" class="w-full mt-1 !rounded-lg" placeholder="Led design…&#10;Owned delivery…"></textarea>
+    </div>
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Outcome</label>
+      <input pInputText [(ngModel)]="pform.outcome" class="w-full mt-1 !rounded-lg" placeholder="Impact / result" />
+    </div>
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Manager feedback</label>
+      <input pInputText [(ngModel)]="pform.feedback" class="w-full mt-1 !rounded-lg" />
+    </div>
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Skills (comma-separated)</label>
+      <input pInputText [(ngModel)]="pform.skills" class="w-full mt-1 !rounded-lg" placeholder="Angular, .NET, AWS" />
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <button pButton severity="secondary" outlined label="Cancel" (click)="formVisible = false"></button>
+    <button pButton [label]="editId ? 'Save' : 'Add project'" [disabled]="!pform.name?.trim()" (click)="saveProject()"></button>
+  </ng-template>
+</p-dialog>
