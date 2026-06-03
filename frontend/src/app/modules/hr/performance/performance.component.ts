@@ -53,7 +53,7 @@ interface PerfEmployee {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Growth" title="Performance" subtitle="Per-employee tracker, calibrated reviews, 9-box and quarter-on-quarter trends.">
+    <app-page-header eyebrow="My Work · Growth" title="Performance" subtitle="Per-employee tracker, calibrated reviews, 9-box and quarter-on-quarter trends.">
       <button pButton severity="secondary" outlined icon="pi pi-calendar" label="Cycles"></button>
       <button pButton icon="pi pi-flag" label="Start review"></button>
     </app-page-header>

@@ -67,7 +67,7 @@ interface CtcDto {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Compensation" title="Payroll" subtitle="Cycles, tax declarations, statutory contributions and slip generation.">
+    <app-page-header eyebrow="My Work · Compensation" title="Payroll" subtitle="Cycles, tax declarations, statutory contributions and slip generation.">
       <button pButton severity="secondary" outlined icon="pi pi-download" label="Export" (click)="exportRegister()"></button>
       <button pButton icon="pi pi-play" label="Run payroll" (click)="runVisible = true"></button>
     </app-page-header>

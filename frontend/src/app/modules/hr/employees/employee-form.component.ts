@@ -39,7 +39,7 @@ import { Employee, EmploymentType } from '../models/hr.models';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-page-header
-      eyebrow="HR · People"
+      eyebrow="My Work · People"
       title="Add new employee"
       subtitle="Onboard a new team member. They'll receive a welcome email with login instructions."
     >

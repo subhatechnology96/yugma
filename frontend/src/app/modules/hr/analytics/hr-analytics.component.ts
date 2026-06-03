@@ -11,7 +11,7 @@ import { EmployeeService } from '../services/employee.service';
   imports: [ChartModule, PageHeaderComponent, KpiCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Insights" title="HR analytics" subtitle="Attrition, diversity, headcount and compensation trends."></app-page-header>
+    <app-page-header eyebrow="My Work · Insights" title="HR analytics" subtitle="Attrition, diversity, headcount and compensation trends."></app-page-header>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
       <app-kpi-card label="Attrition (TTM)" [value]="7.4" suffix="%" format="1.1-1" icon="pi-arrow-down" tone="rose" [delta]="-1.2" trend="down" />

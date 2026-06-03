@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { group: 'Overview', label: 'Dashboard', icon: 'pi-th-large', route: '/dashboard' },
   {
     group: 'Operations',
-    label: 'HR',
+    label: 'My Work',
     icon: 'pi-users',
     children: [
       { label: 'AI Agents Hub', icon: 'pi-sparkles', route: '/hr/agents', badge: 'GPT-5', badgeTone: 'info', requires: 'hrManage' },

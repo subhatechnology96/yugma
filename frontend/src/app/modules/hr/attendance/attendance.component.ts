@@ -114,7 +114,7 @@ interface AttendanceConfig {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Time" title="Attendance" subtitle="Daily punches, late arrivals, work-from-home and absences across departments.">
+    <app-page-header eyebrow="My Work · Time" title="Attendance" subtitle="Daily punches, late arrivals, work-from-home and absences across departments.">
       <button pButton severity="secondary" outlined icon="pi pi-cog" label="Configure" (click)="openConfig()"></button>
       <button pButton severity="secondary" outlined icon="pi pi-download" label="Export" (click)="exportCsv()"></button>
       <button pButton icon="pi pi-bolt" label="Mark bulk"></button>

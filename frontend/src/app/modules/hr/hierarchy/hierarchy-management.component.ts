@@ -51,7 +51,7 @@ interface Analytics {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Organization" title="Hierarchy Management"
+    <app-page-header eyebrow="My Work · Organization" title="Hierarchy Management"
       subtitle="L1–L10 band system, reporting structure and trail-to-CEO. Drag to reassign, change levels and managers dynamically.">
       @if (canManage()) {
         <button pButton severity="secondary" outlined icon="pi pi-upload" label="Bulk upload" (click)="openBulk()"></button>

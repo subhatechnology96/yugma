@@ -98,7 +98,7 @@ type ViewMode = 'cards' | 'health';
     </div>
 
     <app-page-header
-      eyebrow="HR · Intelligence"
+      eyebrow="My Work · Intelligence"
       title="Agent Operations Hub"
       subtitle="Run, configure and monitor every employee-lifecycle agent."
     >

@@ -64,7 +64,7 @@ const STAGES: { key: Stage; label: string; header: string; col: string }[] = [
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Talent" title="Recruitment" subtitle="Applicant tracking — drag candidates across stages, manage open roles and track the hiring funnel.">
+    <app-page-header eyebrow="My Work · Talent" title="Recruitment" subtitle="Applicant tracking — drag candidates across stages, manage open roles and track the hiring funnel.">
       <button pButton severity="secondary" outlined icon="pi pi-plus" label="Add candidate" (click)="openAdd()"></button>
     </app-page-header>
 

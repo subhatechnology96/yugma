@@ -93,7 +93,7 @@ interface LeaveSummary {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Time off" title="Leave management" subtitle="Apply, approve, reject, change and track leave across the company.">
+    <app-page-header eyebrow="My Work · Time off" title="Leave management" subtitle="Apply, approve, reject, change and track leave across the company.">
       <button pButton severity="secondary" [outlined]="true" icon="pi pi-cog" label="Policies" (click)="policiesVisible = true"></button>
       <button pButton icon="pi pi-plus" label="Apply leave" (click)="openApply()"></button>
     </app-page-header>

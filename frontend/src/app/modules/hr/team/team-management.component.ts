@@ -41,7 +41,7 @@ interface HistoryRow {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="HR · Organization" title="Team Management" subtitle="Search, view the reporting hierarchy and assign or change managers, teams and departments — with effective dates and full audit trail.">
+    <app-page-header eyebrow="My Work · Organization" title="Team Management" subtitle="Search, view the reporting hierarchy and assign or change managers, teams and departments — with effective dates and full audit trail.">
       @if (canManage()) {
         <button pButton severity="secondary" outlined icon="pi pi-sitemap" label="Reassign selected" [disabled]="!selectedRows().length" (click)="openReassign(selectedRows())"></button>
       }

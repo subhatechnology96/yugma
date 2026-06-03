@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TabsModule } from 'primeng/tabs';
@@ -12,6 +13,7 @@ import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { TextareaModule } from 'primeng/textarea';
+import { DatePickerModule } from 'primeng/datepicker';
 import { MessageService } from 'primeng/api';
 
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
@@ -22,14 +24,17 @@ import { HrAgentRailComponent } from '../agents/hr-agent-rail.component';
 import { EmployeeService } from '../services/employee.service';
 import { EmployeeProfileService } from '../services/employee-profile.service';
 import { HrAccessService } from '@core/services/hr-access.service';
+import { environment } from '@env/environment';
 import { Employee } from '../models/hr.models';
 import {
+  AttendanceDay,
   AttendanceOverview,
   Career,
   CareerProject,
   EmployeeDocument,
   EmployeeOverview,
   LeaveOverview,
+  Payslip,
   PayrollOverview
 } from '../models/employee-profile.models';
 
@@ -51,6 +56,7 @@ import {
     InputTextModule,
     InputNumberModule,
     TextareaModule,
+    DatePickerModule,
     FormsModule,
     PageHeaderComponent,
     StatusPillComponent,
@@ -66,6 +72,7 @@ export class EmployeeDetailComponent implements OnInit {
   private readonly svc = inject(EmployeeService);
   private readonly profile = inject(EmployeeProfileService);
   private readonly messages = inject(MessageService);
+  private readonly http = inject(HttpClient);
 
   protected readonly loading = signal(true);
   protected readonly employee = signal<Employee | null>(null);
@@ -96,7 +103,15 @@ export class EmployeeDetailComponent implements OnInit {
 
     // Load the rich profile sections in parallel so tab switches are instant.
     this.profile.overview(id).subscribe((d) => this.overview.set(d));
-    this.profile.attendance(id).subscribe((d) => this.attendance.set(d));
+    this.profile.attendance(id).subscribe((d) => {
+      this.attendance.set(d);
+      // Open the calendar on the most recent month that has records.
+      const recs = d?.records ?? [];
+      if (recs.length) {
+        const k = recs.reduce((a, b) => (a.date > b.date ? a : b)).date.slice(0, 10);
+        this.calMonth.set({ y: +k.slice(0, 4), m: +k.slice(5, 7) - 1 });
+      }
+    });
     this.profile.leave(id).subscribe((d) => this.leave.set(d));
     this.profile.payroll(id).subscribe((d) => this.payroll.set(d));
     this.profile.documents(id).subscribe((d) => this.documents.set(d));
@@ -126,8 +141,205 @@ export class EmployeeDetailComponent implements OnInit {
     return status === 'Wfh' ? 'WFH' : status === 'Leave' ? 'On leave' : status;
   }
 
+  // ---- attendance calendar (month / year-wise) ----
+  protected readonly calMonth = signal<{ y: number; m: number } | null>(null);
+  protected readonly weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  protected readonly monthOptions = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ].map((label, value) => ({ label, value }));
+
+  /** Selectable years: every year that has records, padded to a changeable span. */
+  protected readonly yearOptions = computed(() => {
+    const years = new Set<number>();
+    for (const i of this.recordMonths()) years.add(Math.floor(i / 12));
+    const c = this.calMonth();
+    if (c) years.add(c.y);
+    if (years.size === 0) years.add(new Date().getFullYear());
+    const max = Math.max(...years);
+    for (let y = max - 2; y <= max + 1; y++) years.add(y);
+    return [...years].sort((a, b) => b - a).map((y) => ({ label: String(y), value: y }));
+  });
+
+  // Two-way bindings for the month / year dropdowns.
+  protected get calMonthM(): number { return this.calMonth()?.m ?? 0; }
+  protected set calMonthM(m: number) { const c = this.calMonth(); this.calMonth.set({ y: c?.y ?? new Date().getFullYear(), m }); }
+  protected get calMonthY(): number { return this.calMonth()?.y ?? new Date().getFullYear(); }
+  protected set calMonthY(y: number) { const c = this.calMonth(); this.calMonth.set({ y, m: c?.m ?? 0 }); }
+
+  private readonly recordsByDay = computed(() => {
+    const map = new Map<string, AttendanceDay>();
+    for (const r of this.attendance()?.records ?? []) map.set(r.date.slice(0, 10), r);
+    return map;
+  });
+
+  /** Distinct months that have records, as sortable indices (year*12 + month). */
+  private readonly recordMonths = computed(() => {
+    const set = new Set<number>();
+    for (const r of this.attendance()?.records ?? []) {
+      const k = r.date.slice(0, 10);
+      set.add(+k.slice(0, 4) * 12 + (+k.slice(5, 7) - 1));
+    }
+    return [...set].sort((a, b) => a - b);
+  });
+
+  protected prevMonth(): void {
+    const c = this.calMonth(); if (!c) return;
+    const i = c.y * 12 + c.m - 1; this.calMonth.set({ y: Math.floor(i / 12), m: ((i % 12) + 12) % 12 });
+  }
+  protected nextMonth(): void {
+    const c = this.calMonth(); if (!c) return;
+    const i = c.y * 12 + c.m + 1; this.calMonth.set({ y: Math.floor(i / 12), m: i % 12 });
+  }
+
+  /** A Monday-first month grid: weeks of 7 cells; out-of-month cells have day = 0. */
+  protected readonly calendar = computed(() => {
+    const c = this.calMonth();
+    if (!c) return null;
+    const { y, m } = c;
+    const first = new Date(y, m, 1);
+    const lead = (first.getDay() + 6) % 7;                 // blanks before the 1st (Mon-based)
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const byDay = this.recordsByDay();
+    type Cell = { day: number; inMonth: boolean; rec: AttendanceDay | null };
+    const cells: Cell[] = [];
+    for (let i = 0; i < lead; i++) cells.push({ day: 0, inMonth: false, rec: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, inMonth: true, rec: byDay.get(key) ?? null });
+    }
+    while (cells.length % 7 !== 0) cells.push({ day: 0, inMonth: false, rec: null });
+    const weeks: Cell[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return { label: first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), weeks };
+  });
+
+  /** Cell fill + border colour by status. */
+  attendanceCellClass(rec: AttendanceDay | null): string {
+    switch (rec?.status) {
+      case 'Present': return 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30';
+      case 'Wfh':     return 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30';
+      case 'Late':    return 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30';
+      case 'Leave':   return 'bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/30';
+      case 'Absent':  return 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30';
+      default:        return 'bg-surface-50/40 dark:bg-surface-900/20 border-surface-100 dark:border-surface-800';
+    }
+  }
+  /** Accent text colour matching the status. */
+  attendanceTextClass(rec: AttendanceDay | null): string {
+    switch (rec?.status) {
+      case 'Present': return 'text-emerald-700 dark:text-emerald-300';
+      case 'Wfh':     return 'text-indigo-700 dark:text-indigo-300';
+      case 'Late':    return 'text-amber-700 dark:text-amber-300';
+      case 'Leave':   return 'text-violet-700 dark:text-violet-300';
+      case 'Absent':  return 'text-rose-700 dark:text-rose-300';
+      default:        return 'text-surface-400';
+    }
+  }
+
   leaveTone(status: string): StatusTone {
     return status === 'Approved' ? 'success' : status === 'Pending' ? 'warn' : 'danger';
+  }
+
+  // ---- apply for leave ----
+  protected leaveDialogVisible = false;
+  protected readonly savingLeave = signal(false);
+  protected readonly leaveTypeOptions = [
+    { label: 'Casual', value: 'Casual' },
+    { label: 'Sick', value: 'Sick' },
+    { label: 'Earned', value: 'Earned' },
+    { label: 'Paid leave', value: 'Paid' },
+    { label: 'Comp-off', value: 'CompOff' },
+    { label: 'Special leave', value: 'Special' },
+    { label: 'Unpaid', value: 'Unpaid' }
+  ];
+  protected leaveForm: { type: string; from: Date | null; to: Date | null; reason: string } =
+    { type: 'Casual', from: null, to: null, reason: '' };
+
+  protected openLeaveApply(): void {
+    const today = new Date();
+    this.leaveForm = { type: 'Casual', from: today, to: today, reason: '' };
+    this.leaveDialogVisible = true;
+  }
+
+  /** Inclusive day count between the chosen dates (0 when invalid). */
+  protected leaveDays(): number {
+    const f = this.leaveForm.from, t = this.leaveForm.to;
+    if (!f || !t) return 0;
+    const a = new Date(f.getFullYear(), f.getMonth(), f.getDate()).getTime();
+    const b = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    return b < a ? 0 : Math.round((b - a) / 86_400_000) + 1;
+  }
+
+  protected submitLeave(): void {
+    const f = this.leaveForm;
+    if (!f.from || !f.to || this.leaveDays() < 1) {
+      this.messages.add({ severity: 'warn', summary: 'Check the dates', detail: 'Please pick a valid date range.' });
+      return;
+    }
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const days = this.leaveDays();
+    const label = this.leaveTypeOptions.find((o) => o.value === f.type)?.label ?? f.type;
+    const body = {
+      employee: this.employee()?.fullName ?? '',
+      type: f.type,
+      from: fmt(f.from),
+      to: fmt(f.to),
+      days,
+      reason: f.reason?.trim() ?? ''
+    };
+    this.savingLeave.set(true);
+    this.http.post(`${environment.apiBaseUrl}/hr/leave`, body).subscribe({
+      next: () => {
+        this.savingLeave.set(false);
+        this.leaveDialogVisible = false;
+        this.messages.add({ severity: 'success', summary: 'Leave applied', detail: `${label} · ${days} day${days > 1 ? 's' : ''}` });
+        // Refresh balances + history so the new pending request shows immediately.
+        this.profile.leave(this.employeeId).subscribe((d) => this.leave.set(d));
+      },
+      error: (e) => {
+        this.savingLeave.set(false);
+        this.messages.add({ severity: 'error', summary: 'Could not apply', detail: e?.error?.message ?? 'Please try again.' });
+      }
+    });
+  }
+
+  // ---- payslip history filter (month / year, capped at 10 rows) ----
+  protected readonly maxPayslips = 10;
+  protected payMonth: number | null = null;   // 0-11, or null = all months
+  protected payYear: number | null = null;    // null = all years
+  protected readonly payMonthOptions: { label: string; value: number | null }[] =
+    [{ label: 'All months', value: null }, ...this.monthOptions];
+
+  /** Years present in the payslip history, plus an "all years" option. */
+  protected readonly payYearOptions = computed(() => {
+    const years = new Set<number>();
+    for (const p of this.payroll()?.payslips ?? []) years.add(new Date(p.payDate).getFullYear());
+    const opts: { label: string; value: number | null }[] =
+      [...years].sort((a, b) => b - a).map((y) => ({ label: String(y), value: y }));
+    return [{ label: 'All years', value: null }, ...opts];
+  });
+
+  /** Payslips matching the chosen month/year, newest first, capped at maxPayslips. */
+  protected filteredPayslips(): Payslip[] {
+    const all = this.payroll()?.payslips ?? [];
+    return all
+      .filter((p) => {
+        const d = new Date(p.payDate);
+        return (this.payMonth === null || d.getMonth() === this.payMonth)
+          && (this.payYear === null || d.getFullYear() === this.payYear);
+      })
+      .slice(0, this.maxPayslips);
+  }
+
+  /** Total matches before the 10-row cap (for the "showing X of Y" hint). */
+  protected payslipMatchCount(): number {
+    return (this.payroll()?.payslips ?? []).filter((p) => {
+      const d = new Date(p.payDate);
+      return (this.payMonth === null || d.getMonth() === this.payMonth)
+        && (this.payYear === null || d.getFullYear() === this.payYear);
+    }).length;
   }
 
   docTone(status: string): StatusTone {

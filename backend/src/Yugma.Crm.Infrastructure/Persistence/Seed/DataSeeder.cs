@@ -552,23 +552,44 @@ public static class DataSeeder
 
     private static async Task SeedEmployeeDocumentsAsync(YugmaDbContext db, CancellationToken ct)
     {
-        if (await db.EmployeeDocuments.IgnoreQueryFilters().AnyAsync(ct)) return;
         var employees = await db.Employees.IgnoreQueryFilters().ToListAsync(ct);
+        if (employees.Count == 0) return;
+
+        // Idempotent per-employee: only generate the mandatory document set for employees that
+        // have none yet, so personas/joiners added in a later seed run get backfilled (the old
+        // "skip if any document exists" guard left them with an empty Documents tab).
+        var alreadyHaveDocs = (await db.EmployeeDocuments.IgnoreQueryFilters()
+            .Select(d => d.EmployeeId).Distinct().ToListAsync(ct)).ToHashSet();
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var docs = new List<EmployeeDocument>();
 
         foreach (var e in employees)
         {
+            if (alreadyHaveDocs.Contains(e.Id)) continue;
+
             var r = new Random(BitConverter.ToInt32(e.Id.ToByteArray()));
             long Kb(int min, int max) => r.Next(min, max) * 1024L;
             var joined = e.JoinedAt;
 
+            // ---- mandatory company documents (required for every employee on file) ----
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Offer Letter", "Contract", "PDF", Kb(180, 420), DocumentStatus.Verified, joined.AddDays(-7), null, "HR Onboarding"));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Appointment Letter", "Contract", "PDF", Kb(220, 480), DocumentStatus.Verified, joined, null, "HR Onboarding"));
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Employment Agreement", "Contract", "PDF", Kb(320, 720), DocumentStatus.Verified, joined, null, "HR Onboarding"));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Non-Disclosure Agreement", "Compliance", "PDF", Kb(160, 360), DocumentStatus.Verified, joined, null, "HR Onboarding"));
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "PAN Card", "Identity", "JPG", Kb(90, 260), DocumentStatus.Verified, joined.AddDays(1), null, e.Name.Full));
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Aadhaar Card", "Identity", "PDF", Kb(120, 300), DocumentStatus.Verified, joined.AddDays(1), null, e.Name.Full));
-            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Bank Account Proof", "Compliance", "PDF", Kb(80, 200), DocumentStatus.Verified, joined.AddDays(2), null, e.Name.Full));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Passport-size Photograph", "Identity", "JPG", Kb(40, 120), DocumentStatus.Verified, joined.AddDays(1), null, e.Name.Full));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Bank Account Proof (Cancelled Cheque)", "Compliance", "PDF", Kb(80, 200), DocumentStatus.Verified, joined.AddDays(2), null, e.Name.Full));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Educational Certificates", "Certificate", "PDF", Kb(400, 1200), DocumentStatus.Verified, joined.AddDays(2), null, e.Name.Full));
+            docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Background Verification Report", "Compliance", "PDF", Kb(180, 420), DocumentStatus.Verified, joined.AddDays(r.Next(7, 30)), null, "HR Compliance"));
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Form 16 — FY 2024-25", "Payroll", "PDF", Kb(140, 360), DocumentStatus.Verified, new DateOnly(2025, 6, 15), null, "Finance"));
+
+            // Relieving / experience letter from the previous employer — not applicable to a
+            // trainee/intern joining their first job.
+            var firstJob = e.Band is <= 1 || e.EmploymentType == EmploymentType.Intern;
+            if (!firstJob)
+                docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Relieving Letter — Previous Employer", "Contract", "PDF", Kb(120, 300), DocumentStatus.Verified, joined.AddDays(-2), null, "HR Onboarding"));
 
             var cert = e.Skills.Count > 0 ? $"{e.Skills[0]} Certification" : "Professional Certification";
             docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, cert, "Certificate", "PDF", Kb(200, 500), DocumentStatus.Verified, joined.AddMonths(r.Next(3, 20)), today.AddMonths(r.Next(4, 20)), e.Name.Full));
@@ -577,6 +598,7 @@ public static class DataSeeder
                 docs.Add(EmployeeDocument.Create(e.TenantId, e.Id, "Address Proof (updated)", "Compliance", "PDF", Kb(90, 240), DocumentStatus.Pending, today.AddDays(-r.Next(2, 25)), null, e.Name.Full));
         }
 
+        if (docs.Count == 0) return;
         db.EmployeeDocuments.AddRange(docs);
         await db.SaveChangesAsync(ct);
     }

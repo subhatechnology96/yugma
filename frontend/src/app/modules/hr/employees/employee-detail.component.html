@@ -3,7 +3,7 @@
     <i class="pi pi-spin pi-spinner text-2xl"></i>
   </div>
 } @else if (employee(); as emp) {
-  <app-page-header eyebrow="HR · Profile" [title]="emp.fullName" [subtitle]="emp.designation + ' · ' + emp.department">
+  <app-page-header eyebrow="My Work · Profile" [title]="emp.fullName" [subtitle]="emp.designation + ' · ' + emp.department">
     <a routerLink="/hr/employees"><button pButton severity="secondary" outlined icon="pi pi-arrow-left" label="Back"></button></a>
     <button pButton severity="secondary" outlined icon="pi pi-pencil" label="Edit"></button>
     <button pButton icon="pi pi-send" label="Message"></button>
@@ -194,26 +194,62 @@
                   <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300">Absent {{ at.absent }}</span>
                 </div>
 
-                <p-table [value]="at.records" responsiveLayout="scroll" styleClass="!border-0 text-sm">
-                  <ng-template pTemplate="header">
-                    <tr class="!bg-surface-50 dark:!bg-surface-900/40">
-                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Date</th>
-                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
-                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">In</th>
-                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Out</th>
-                      <th class="!text-xs !uppercase !tracking-wider !text-surface-500 !text-right">Hours</th>
-                    </tr>
-                  </ng-template>
-                  <ng-template pTemplate="body" let-r>
-                    <tr>
-                      <td>{{ r.date | date: 'EEE, MMM d' }}</td>
-                      <td><app-status-pill [tone]="attendanceTone(r.status)">{{ attendanceLabel(r.status) }}</app-status-pill></td>
-                      <td class="text-surface-600 dark:text-surface-300">{{ r.inTime ?? '—' }}</td>
-                      <td class="text-surface-600 dark:text-surface-300">{{ r.outTime ?? '—' }}</td>
-                      <td class="text-right tabular-nums">{{ r.hours ? (r.hours | number: '1.1-1') : '—' }}</td>
-                    </tr>
-                  </ng-template>
-                </p-table>
+                <!-- ===== month / year calendar ===== -->
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div class="flex items-center gap-1.5">
+                    <button pButton type="button" text rounded size="small" icon="pi pi-chevron-left"
+                            pTooltip="Previous month" (click)="prevMonth()"></button>
+                    <p-select [options]="monthOptions" optionLabel="label" optionValue="value"
+                              [(ngModel)]="calMonthM" appendTo="body" styleClass="!text-sm"
+                              [style]="{ minWidth: '8.5rem' }"></p-select>
+                    <p-select [options]="yearOptions()" optionLabel="label" optionValue="value"
+                              [(ngModel)]="calMonthY" appendTo="body" styleClass="!text-sm"
+                              [style]="{ minWidth: '6rem' }"></p-select>
+                    <button pButton type="button" text rounded size="small" icon="pi pi-chevron-right"
+                            pTooltip="Next month" (click)="nextMonth()"></button>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3 text-[11px] text-surface-500">
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400"></span>Present</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-400"></span>WFH</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Late</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-violet-400"></span>Leave</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-400"></span>Absent</span>
+                  </div>
+                </div>
+
+                @if (calendar(); as cal) {
+                  <div class="rounded-xl border border-surface-200 dark:border-surface-800 overflow-hidden">
+                    <div class="grid grid-cols-7 bg-surface-50 dark:bg-surface-900/40 border-b border-surface-200 dark:border-surface-800">
+                      @for (w of weekdayLabels; track w) {
+                        <div class="px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-surface-500 text-center">{{ w }}</div>
+                      }
+                    </div>
+                    @for (week of cal.weeks; track $index) {
+                      <div class="grid grid-cols-7">
+                        @for (cell of week; track $index) {
+                          <div class="min-h-[94px] border-r border-b border-surface-100 dark:border-surface-800 p-1.5 last:border-r-0">
+                            @if (cell.inMonth) {
+                              <div class="h-full rounded-lg border p-1.5 flex flex-col gap-1 {{ attendanceCellClass(cell.rec) }}">
+                                <div class="flex items-center justify-between gap-1">
+                                  <span class="text-xs font-semibold text-surface-700 dark:text-surface-200">{{ cell.day }}</span>
+                                  @if (cell.rec) {
+                                    <span class="text-[9px] font-semibold uppercase tracking-wide truncate {{ attendanceTextClass(cell.rec) }}">{{ attendanceLabel(cell.rec.status) }}</span>
+                                  }
+                                </div>
+                                @if (cell.rec?.inTime) {
+                                  <div class="text-[10px] leading-tight text-surface-500 dark:text-surface-400 tabular-nums">{{ cell.rec!.inTime }} – {{ cell.rec!.outTime ?? '—' }}</div>
+                                  <div class="mt-auto text-right text-xs font-semibold tabular-nums {{ attendanceTextClass(cell.rec) }}">{{ cell.rec!.hours | number: '1.1-1' }}h</div>
+                                } @else if (cell.rec) {
+                                  <div class="mt-auto text-[10px] text-surface-400">No punch</div>
+                                }
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             } @else {
               <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
@@ -224,6 +260,10 @@
           <p-tabpanel value="leave">
             @if (leave(); as lv) {
               <div class="p-2 space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="section-title">Leave balance</div>
+                  <button pButton type="button" size="small" icon="pi pi-plus" label="Apply for leave" (click)="openLeaveApply()"></button>
+                </div>
                 <div class="grid grid-cols-3 gap-3">
                   <div class="rounded-xl border border-surface-200 dark:border-surface-800 p-4">
                     <div class="text-xs text-surface-500 mb-1">Entitled</div>
@@ -343,8 +383,16 @@
 
                 <!-- Payslip history -->
                 <div>
-                  <div class="section-title mb-2">Payslip history</div>
-                  <p-table [value]="pr.payslips" responsiveLayout="scroll" styleClass="!border-0 text-sm">
+                  <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+                    <div class="section-title">Payslip history</div>
+                    <div class="flex items-center gap-2">
+                      <p-select [options]="payMonthOptions" optionLabel="label" optionValue="value"
+                                [(ngModel)]="payMonth" appendTo="body" styleClass="!text-sm" [style]="{ minWidth: '8.5rem' }"></p-select>
+                      <p-select [options]="payYearOptions()" optionLabel="label" optionValue="value"
+                                [(ngModel)]="payYear" appendTo="body" styleClass="!text-sm" [style]="{ minWidth: '7rem' }"></p-select>
+                    </div>
+                  </div>
+                  <p-table [value]="filteredPayslips()" responsiveLayout="scroll" styleClass="!border-0 text-sm">
                     <ng-template pTemplate="header">
                       <tr class="!bg-surface-50 dark:!bg-surface-900/40">
                         <th class="!text-xs !uppercase !tracking-wider !text-surface-500">Period</th>
@@ -367,7 +415,13 @@
                         <td><button pButton text rounded size="small" icon="pi pi-download" pTooltip="Download payslip" class="!text-surface-500"></button></td>
                       </tr>
                     </ng-template>
+                    <ng-template pTemplate="emptymessage">
+                      <tr><td colspan="7" class="text-center text-surface-400 py-6">No payslips for this period.</td></tr>
+                    </ng-template>
                   </p-table>
+                  @if (payslipMatchCount() > maxPayslips) {
+                    <div class="text-[11px] text-surface-500 mt-2 text-right">Showing latest {{ maxPayslips }} of {{ payslipMatchCount() }} payslips — narrow by month or year to see others.</div>
+                  }
                 </div>
               </div>
             } @else {
@@ -760,5 +814,38 @@
   <ng-template pTemplate="footer">
     <button pButton severity="secondary" outlined label="Cancel" (click)="formVisible = false"></button>
     <button pButton [label]="editId ? 'Save' : 'Add project'" [disabled]="!pform.name?.trim()" (click)="saveProject()"></button>
+  </ng-template>
+</p-dialog>
+
+<!-- ================= APPLY FOR LEAVE ================= -->
+<p-dialog [(visible)]="leaveDialogVisible" [modal]="true" [style]="{ width: '32rem' }"
+          [header]="'Apply for leave · ' + (employee()?.fullName || '')" [draggable]="false" [dismissableMask]="true">
+  <div class="grid grid-cols-2 gap-4 pt-1">
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Leave type</label>
+      <p-select [options]="leaveTypeOptions" optionLabel="label" optionValue="value"
+                [(ngModel)]="leaveForm.type" class="w-full mt-1" [style]="{ width: '100%' }" appendTo="body"></p-select>
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">From</label>
+      <p-datepicker [(ngModel)]="leaveForm.from" dateFormat="d M yy" [showIcon]="true" appendTo="body"
+                    styleClass="w-full mt-1" [style]="{ width: '100%' }" inputStyleClass="!rounded-lg"></p-datepicker>
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">To</label>
+      <p-datepicker [(ngModel)]="leaveForm.to" dateFormat="d M yy" [showIcon]="true" appendTo="body"
+                    styleClass="w-full mt-1" [style]="{ width: '100%' }" inputStyleClass="!rounded-lg"></p-datepicker>
+    </div>
+    <div class="col-span-2 -mt-1">
+      <span class="text-[11px] text-surface-500">Duration: <span class="font-semibold text-surface-700 dark:text-surface-200">{{ leaveDays() }}</span> day{{ leaveDays() === 1 ? '' : 's' }}</span>
+    </div>
+    <div class="col-span-2">
+      <label class="text-xs font-medium text-surface-600">Reason</label>
+      <textarea pTextarea [(ngModel)]="leaveForm.reason" rows="3" class="w-full mt-1 !rounded-lg" placeholder="Reason for leave"></textarea>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <button pButton severity="secondary" outlined label="Cancel" (click)="leaveDialogVisible = false"></button>
+    <button pButton label="Submit request" icon="pi pi-check" [disabled]="savingLeave() || leaveDays() < 1" (click)="submitLeave()"></button>
   </ng-template>
 </p-dialog>

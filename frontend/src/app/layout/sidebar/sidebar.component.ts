@@ -130,7 +130,7 @@ export class SidebarComponent {
   readonly collapsed = input<boolean>(false);
   readonly toggleCollapse = output<void>();
 
-  private readonly openGroups = signal<Set<string>>(new Set(['HR']));
+  private readonly openGroups = signal<Set<string>>(new Set(['My Work']));
 
   /** Whether the current user may see a nav item with the given access requirement. */
   private canSee(requires?: NavAccess): boolean {
@@ -169,7 +169,7 @@ export class SidebarComponent {
     return children.flatMap((c) => {
       if (c.route !== '/hr/employees') return [c];
       const out: NavItem[] = [];
-      if (empId) out.push({ label: 'My Profile', icon: 'pi-user', route: `/hr/employees/${empId}` });
+      if (empId) out.push({ label: 'Profile', icon: 'pi-user', route: `/hr/employees/${empId}` });
       if (scope !== 'self') out.push({ label: 'My Team', icon: 'pi-users', route: '/hr/employees', exact: true });
       return out.length ? out : [c]; // fallback: no employee record → keep the directory
     });
