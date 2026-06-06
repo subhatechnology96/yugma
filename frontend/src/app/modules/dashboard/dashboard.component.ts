@@ -64,7 +64,7 @@ interface Kpi { label: string; value: number; caption: string; icon: string; ton
             <div class="section-title">{{ canManage() ? 'Action required' : 'My requests' }}</div>
             <div class="text-lg font-semibold mt-1">{{ canManage() ? 'Pending leave approvals' : 'My leave requests' }}</div>
           </div>
-          <a routerLink="/hr/leave" class="text-xs font-medium text-brand-600 hover:underline">Open leave</a>
+          <a routerLink="/my-work/leave" class="text-xs font-medium text-brand-600 hover:underline">Open leave</a>
         </div>
 
         @if (canManage()) {
@@ -234,11 +234,11 @@ export class DashboardComponent {
 
   private load(): void {
     forkJoin({
-      summary: this.http.get<LeaveSummary>(`${this.base}/hr/leave/summary`),
-      balances: this.http.get<EmployeeBalance[]>(`${this.base}/hr/leave/balances`),
-      leaves: this.http.get<LeaveRow[]>(`${this.base}/hr/leave`),
-      attendance: this.http.get<{ summary: AttendanceSummary }>(`${this.base}/hr/attendance/daily`),
-      employees: this.http.get<{ items: EmployeeRow[] }>(`${this.base}/hr/employees`, { params: new HttpParams().set('pageSize', '200') })
+      summary: this.http.get<LeaveSummary>(`${this.base}/my-work/leave/summary`),
+      balances: this.http.get<EmployeeBalance[]>(`${this.base}/my-work/leave/balances`),
+      leaves: this.http.get<LeaveRow[]>(`${this.base}/my-work/leave`),
+      attendance: this.http.get<{ summary: AttendanceSummary }>(`${this.base}/my-work/attendance/daily`),
+      employees: this.http.get<{ items: EmployeeRow[] }>(`${this.base}/my-work/employees`, { params: new HttpParams().set('pageSize', '200') })
     }).subscribe((r) => {
       this.leaveSummary.set(r.summary);
       this.balances.set(r.balances);
@@ -274,7 +274,7 @@ export class DashboardComponent {
   // ── leave approve/reject (team leads & HR) ──
   decide(row: LeaveRow, action: 'approve' | 'reject'): void {
     this.busy.set(true);
-    this.http.post(`${this.base}/hr/leave/${row.id}/${action}`, {}).subscribe({
+    this.http.post(`${this.base}/my-work/leave/${row.id}/${action}`, {}).subscribe({
       next: () => {
         this.toast.add({ severity: 'success', summary: action === 'approve' ? 'Approved' : 'Rejected', detail: `${row.employee} · ${row.type} leave` });
         this.busy.set(false);

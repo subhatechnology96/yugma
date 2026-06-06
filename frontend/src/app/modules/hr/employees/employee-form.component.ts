@@ -43,7 +43,7 @@ import { Employee, EmploymentType } from '../models/hr.models';
       title="Add new employee"
       subtitle="Onboard a new team member. They'll receive a welcome email with login instructions."
     >
-      <a routerLink="/hr/employees">
+      <a routerLink="/my-work/employees">
         <button pButton severity="secondary" [outlined]="true" icon="pi pi-arrow-left" label="Cancel"></button>
       </a>
     </app-page-header>
@@ -359,7 +359,7 @@ import { Employee, EmploymentType } from '../models/hr.models';
             Fields marked <span class="text-rose-500">*</span> are required.
           </div>
           <div class="flex gap-2">
-            <a routerLink="/hr/employees">
+            <a routerLink="/my-work/employees">
               <button type="button" pButton severity="secondary" [outlined]="true" label="Cancel"></button>
             </a>
             <button type="submit" pButton icon="pi pi-check" label="Create employee" [disabled]="form.invalid"></button>
@@ -598,7 +598,7 @@ export class EmployeeFormComponent {
           detail: `${emp.fullName} (${emp.code}) · provisioning request opened for IT.`,
           life: 5000
         });
-        void this.router.navigate(['/hr/employees', emp.id]);
+        void this.router.navigate(['/my-work/employees', emp.id]);
       },
       error: (err) => {
         const detail =

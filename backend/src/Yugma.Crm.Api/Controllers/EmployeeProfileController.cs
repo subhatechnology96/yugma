@@ -14,7 +14,7 @@ namespace Yugma.Crm.Api.Controllers;
 /// overview, attendance, leave, payroll and documents.
 /// </summary>
 [ApiController]
-[Route("api/hr/employees")]
+[Route("api/my-work/employees")]
 [Produces("application/json")]
 [Authorize] // a non-privileged user may only open their OWN profile
 public sealed class EmployeeProfileController(YugmaDbContext db, HrAccess access) : ControllerBase, IAsyncActionFilter

@@ -9,7 +9,7 @@ namespace Yugma.Crm.Api.Controllers;
 /// module (manage everything vs. see only their own data) and which employee record is "theirs".
 /// </summary>
 [ApiController]
-[Route("api/hr/access")]
+[Route("api/my-work/access")]
 [Produces("application/json")]
 [Authorize]
 public sealed class HrAccessController(HrAccess access) : ControllerBase

@@ -42,7 +42,7 @@ export class HrAccessService {
   /** Loads the access context once and caches it; route guards subscribe to await it. */
   ensure(): Observable<HrAccess | null> {
     if (!this.access$) {
-      this.access$ = this.http.get<HrAccess>(`${environment.apiBaseUrl}/hr/access`).pipe(
+      this.access$ = this.http.get<HrAccess>(`${environment.apiBaseUrl}/my-work/access`).pipe(
         tap((a) => this._access.set(a)),
         catchError(() => of(null)),
         shareReplay(1)

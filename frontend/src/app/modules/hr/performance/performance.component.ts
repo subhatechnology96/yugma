@@ -53,9 +53,10 @@ interface PerfEmployee {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="My Work · Growth" title="Performance" subtitle="Per-employee tracker, calibrated reviews, 9-box and quarter-on-quarter trends.">
-      <button pButton severity="secondary" outlined icon="pi pi-calendar" label="Cycles"></button>
-      <button pButton icon="pi pi-flag" label="Start review"></button>
+    <app-page-header eyebrow="My Team · Growth" title="Team Performance" subtitle="Track your team — calibrated ratings, 9-box, quarter-on-quarter trends. Add and change quarterly reviews.">
+      @if (canReview()) {
+        <button pButton icon="pi pi-plus" label="Add quarterly review" (click)="startReview()"></button>
+      }
     </app-page-header>
 
     <app-hr-agent-rail [keys]="['active.performance', 'active.learning', 'confirmation.feedback']" title="Performance co-pilots" />
@@ -268,6 +269,31 @@ interface PerfEmployee {
       <ng-template pTemplate="footer"><button pButton label="Close" (click)="empVisible = false"></button></ng-template>
     </p-dialog>
 
+    <!-- ===================== Add quarterly review (pick member + period) ===================== -->
+    <p-dialog [(visible)]="newReviewVisible" [modal]="true" [style]="{ width: '30rem' }" header="Add quarterly review" [draggable]="false" [dismissableMask]="true">
+      <div class="space-y-4 pt-1">
+        <p class="text-sm text-surface-600 dark:text-surface-300">Pick a team member and the quarter to review, then enter the rating and feedback.</p>
+        <div>
+          <label class="text-xs font-medium text-surface-600">Team member</label>
+          <p-select [options]="employeeOptions()" [(ngModel)]="newReview.employeeId" placeholder="Select a team member" [filter]="true" filterBy="label" styleClass="w-full mt-1 !rounded-lg" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-surface-600">Year</label>
+            <p-select [options]="yearOptions" [(ngModel)]="newReview.year" styleClass="w-full mt-1 !rounded-lg" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-surface-600">Quarter</label>
+            <p-select [options]="quarterOptions" [(ngModel)]="newReview.quarter" styleClass="w-full mt-1 !rounded-lg" />
+          </div>
+        </div>
+      </div>
+      <ng-template pTemplate="footer">
+        <button pButton severity="secondary" outlined label="Cancel" (click)="newReviewVisible = false"></button>
+        <button pButton label="Continue" icon="pi pi-arrow-right" iconPos="right" [disabled]="!newReview.employeeId" (click)="beginReview()"></button>
+      </ng-template>
+    </p-dialog>
+
     <!-- ===================== Review editor (Admin / HR / manager) ===================== -->
     <p-dialog [(visible)]="reviewVisible" [modal]="true" [style]="{ width: '32rem' }" [header]="'Review · ' + reviewForm.label" [draggable]="false" [dismissableMask]="true">
       <div class="space-y-4 pt-1">
@@ -321,7 +347,7 @@ export class PerformanceComponent {
   private readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
   private readonly messages = inject(MessageService);
-  private readonly base = `${environment.apiBaseUrl}/hr/performance`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/performance`;
 
   /** Only Admin / HR / Manager may review and change ratings. */
   private readonly hrAccess = inject(HrAccessService);
@@ -348,10 +374,10 @@ export class PerformanceComponent {
   }
 
   loadSummary() {
-    this.http.get<PerfSummary>(`${this.base}/summary`, { params: { year: String(this.year) } }).subscribe((d) => this.summary.set(d));
+    this.http.get<PerfSummary>(`${this.base}/summary`, { params: { year: String(this.year), scope: 'team' } }).subscribe((d) => this.summary.set(d));
   }
   loadTracker() {
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = { scope: 'team' };
     if (this.search.trim()) params['search'] = this.search.trim();
     this.http.get<TrackerRow[]>(`${this.base}/tracker`, { params }).subscribe((d) => this.tracker.set(d));
   }
@@ -366,6 +392,50 @@ export class PerformanceComponent {
     this.http.get<PerfEmployee>(`${this.base}/employee/${id}`).subscribe((d) => {
       this.emp.set(d);
       this.selectedYear.set(d.years[0]?.year ?? this.year);
+    });
+  }
+
+  // ---- add quarterly review (member + period picker) ----
+  protected readonly quarterOptions = [1, 2, 3, 4].map((q) => ({ label: `Q${q}`, value: q }));
+  protected readonly employeeOptions = computed(() =>
+    this.tracker().map((r) => ({ label: `${r.name} · ${r.designation}`, value: r.employeeId }))
+  );
+  newReviewVisible = false;
+  newReview: { employeeId: string; year: number; quarter: number } = {
+    employeeId: '',
+    year: this.year,
+    quarter: Math.floor(new Date().getMonth() / 3) + 1
+  };
+
+  startReview() {
+    this.newReview = {
+      employeeId: this.tracker()[0]?.employeeId ?? '',
+      year: this.year,
+      quarter: Math.floor(new Date().getMonth() / 3) + 1
+    };
+    this.newReviewVisible = true;
+  }
+
+  /** Load the chosen member, then open the review editor for the chosen quarter (prefilled if it exists). */
+  beginReview() {
+    const id = this.newReview.employeeId;
+    if (!id) return;
+    const { year, quarter } = this.newReview;
+    this.http.get<PerfEmployee>(`${this.base}/employee/${id}`).subscribe((d) => {
+      this.emp.set(d);
+      this.selectedYear.set(year);
+      this.newReviewVisible = false;
+      const q = d.years.find((y) => y.year === year)?.quarters.find((x) => x.quarter === quarter);
+      if (q) {
+        this.openReview(q);
+      } else {
+        // Quarter not in the generated series (e.g. future) — start a blank review.
+        this.reviewForm = {
+          label: `Q${quarter} ${year}`, year, quarter, rating: 3, goalProgress: 70,
+          status: 'Calibrated', reviewer: d.manager || '', summary: '', competencies: [3, 3, 3, 3, 3]
+        };
+        this.reviewVisible = true;
+      }
     });
   }
 

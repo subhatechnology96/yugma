@@ -41,7 +41,8 @@ internal sealed class EmployeeProvisioningHook(
             kind: NotificationKind.Warn,
             createdAt: DateTime.UtcNow,
             read: false,
-            link: "/it/provisioning");
+            link: "/it/provisioning",
+            audience: "admin"); // IT/admins act on provisioning, not the new joiner
         await db.Notifications.AddAsync(notice, ct);
 
         logger.LogInformation(

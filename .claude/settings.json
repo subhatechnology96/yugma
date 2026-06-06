@@ -4,7 +4,12 @@
       "Bash(npm start *)",
       "Bash(rm -f \"Yugma.Crm.Api/Controllers/MaterialsController.cs\" \"Yugma.Crm.Infrastructure/Persistence/Configurations/MaterialConfiguration.cs\" \"Yugma.Crm.Domain/Inventory/Material.cs\")",
       "Bash(rmdir \"Yugma.Crm.Domain/Inventory\")",
-      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" https://localhost:7148/api/material)"
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" https://localhost:7148/api/material)",
+      "Bash(psql --version)",
+      "Bash(curl -sk -o /dev/null -w \"auth/login -> HTTP %{http_code}\\\\n\" -X POST https://localhost:7148/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"owner@yugma.io\",\"password\":\"Yugma@123\"}')",
+      "Bash(curl -s -o /dev/null -w \"GET http://localhost:4200 -> HTTP %{http_code}\\\\n\" http://localhost:4200)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git commit --amend -m 'Rebrand HR module to \"My Work\" and expand employee detail view *)"
     ]
   }
 }

@@ -482,7 +482,7 @@ export class LeaveComponent {
   private readonly messages = inject(MessageService);
   private readonly employees = inject(EmployeeService);
   private readonly hrAccess = inject(HrAccessService);
-  private readonly base = `${environment.apiBaseUrl}/hr/leave`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/leave`;
 
   protected readonly pending = signal<LeaveRow[]>([]);
   protected readonly approved = signal<LeaveRow[]>([]);

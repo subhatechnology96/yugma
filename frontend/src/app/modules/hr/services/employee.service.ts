@@ -26,7 +26,7 @@ export interface EmployeeAccess {
 @Injectable({ providedIn: 'root' })
 export class EmployeeService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBaseUrl}/hr/employees`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/employees`;
 
   // Full directory snapshot — drives KPIs, charts and pickers, independent of the
   // employee table's current page/filter. 200 is the API's max page size.
@@ -64,6 +64,23 @@ export class EmployeeService {
 
   byId(id: string): Observable<Employee | undefined> {
     return this.http.get<Employee>(`${this.base}/${id}`);
+  }
+
+  /** The current user's team — only the employees who report to them (excludes self). */
+  team(req: PageRequest): Observable<PageResult<Employee>> {
+    let params = new HttpParams()
+      .set('page', String(req.page ?? 1))
+      .set('pageSize', String(req.pageSize ?? 20));
+    if (req.search) params = params.set('search', req.search);
+    if (req.sortBy) params = params.set('sortBy', req.sortBy);
+    if (req.sortDir) params = params.set('sortDir', req.sortDir);
+
+    const department = req.filters?.['department'];
+    const status = req.filters?.['status'];
+    if (department) params = params.set('department', String(department));
+    if (status) params = params.set('status', String(status));
+
+    return this.http.get<ApiPaged<Employee>>(`${this.base}/team`, { params });
   }
 
   /** What the current user may do on the Employees screen (HR/admin vs. own-record-only). */

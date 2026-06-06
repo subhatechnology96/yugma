@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr/performance")]
+[Route("api/my-work/performance")]
 [Produces("application/json")]
 [Authorize] // HR/admins see the org tracker; everyone else sees only their own performance
 public sealed class PerformanceController(YugmaDbContext db, HrAccess access) : ControllerBase
@@ -30,20 +30,26 @@ public sealed class PerformanceController(YugmaDbContext db, HrAccess access) : 
     private async Task<List<string>> CompetenciesAsync(CancellationToken ct) =>
         await db.Competencies.AsNoTracking().OrderBy(c => c.SortOrder).Select(c => c.Name).ToListAsync(ct);
 
+    // Which employee ids the response is restricted to. scope=team → the caller's reports only (excludes
+    // self, and HR/admins get their own reports rather than the whole org) for the "My Team" screens;
+    // otherwise the default visibility (self + team, or everyone for HR/admins). null = no restriction.
+    private static IReadOnlySet<Guid>? RestrictSet(HrAccessResult acc, string? scope) =>
+        string.Equals(scope, "team", StringComparison.OrdinalIgnoreCase) ? acc.ManagedIds : acc.VisibleIds;
+
     [HttpGet("summary")]
     [ProducesResponseType(typeof(PerfSummaryDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Summary([FromQuery] int? year = null, CancellationToken ct = default)
+    public async Task<IActionResult> Summary([FromQuery] int? year = null, [FromQuery] string? scope = null, CancellationToken ct = default)
     {
         var acc = await access.ResolveAsync(ct);
         var employees = await db.Employees.AsNoTracking().ToListAsync(ct);
-        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
+        if (RestrictSet(acc, scope) is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
         var ov = await OverridesAsync(null, ct);
         return Ok(PerformanceFactory.BuildSummary(employees, year ?? Today.Year, Today, await CompetenciesAsync(ct), ov));
     }
 
     [HttpGet("tracker")]
     [ProducesResponseType(typeof(IReadOnlyList<PerfTrackerRowDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Tracker([FromQuery] string? search = null, CancellationToken ct = default)
+    public async Task<IActionResult> Tracker([FromQuery] string? search = null, [FromQuery] string? scope = null, CancellationToken ct = default)
     {
         var q = db.Employees.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
@@ -55,7 +61,7 @@ public sealed class PerformanceController(YugmaDbContext db, HrAccess access) : 
         }
         var acc = await access.ResolveAsync(ct);
         var employees = await q.ToListAsync(ct);
-        if (acc.VisibleIds is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
+        if (RestrictSet(acc, scope) is { } vis) employees = employees.Where(e => vis.Contains(e.Id)).ToList();
         var ov = await OverridesAsync(null, ct);
         return Ok(PerformanceFactory.BuildTracker(employees, Today, await CompetenciesAsync(ct), ov));
     }

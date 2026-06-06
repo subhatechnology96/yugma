@@ -52,7 +52,7 @@ import { AgentInfo, AgentRun, AgentService, AgentStage, AgentStatus } from './ag
               <div class="text-[10px] uppercase tracking-[0.18em] font-semibold text-indigo-700 dark:text-indigo-300">
                 Yugma agents · {{ stageTitle() }}
               </div>
-              <a routerLink="/hr/agents" class="text-xs text-surface-500 hover:text-indigo-500 inline-flex items-center gap-1">
+              <a routerLink="/my-work/agents" class="text-xs text-surface-500 hover:text-indigo-500 inline-flex items-center gap-1">
                 Open Agent Hub <i class="pi pi-arrow-up-right text-[10px]"></i>
               </a>
             </div>

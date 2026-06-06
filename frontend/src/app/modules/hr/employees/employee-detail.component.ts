@@ -290,7 +290,7 @@ export class EmployeeDetailComponent implements OnInit {
       reason: f.reason?.trim() ?? ''
     };
     this.savingLeave.set(true);
-    this.http.post(`${environment.apiBaseUrl}/hr/leave`, body).subscribe({
+    this.http.post(`${environment.apiBaseUrl}/my-work/leave`, body).subscribe({
       next: () => {
         this.savingLeave.set(false);
         this.leaveDialogVisible = false;

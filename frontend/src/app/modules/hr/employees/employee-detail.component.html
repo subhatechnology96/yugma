@@ -4,7 +4,7 @@
   </div>
 } @else if (employee(); as emp) {
   <app-page-header eyebrow="My Work · Profile" [title]="emp.fullName" [subtitle]="emp.designation + ' · ' + emp.department">
-    <a routerLink="/hr/employees"><button pButton severity="secondary" outlined icon="pi pi-arrow-left" label="Back"></button></a>
+    <a routerLink="/my-work/employees"><button pButton severity="secondary" outlined icon="pi pi-arrow-left" label="Back"></button></a>
     <button pButton severity="secondary" outlined icon="pi pi-pencil" label="Edit"></button>
     <button pButton icon="pi pi-send" label="Message"></button>
   </app-page-header>
@@ -694,7 +694,7 @@
   </div>
 } @else {
   <app-empty-state title="Employee not found" description="The record you're looking for may have been removed." icon="pi-exclamation-triangle">
-    <a routerLink="/hr/employees"><button pButton label="Back to list"></button></a>
+    <a routerLink="/my-work/employees"><button pButton label="Back to list"></button></a>
   </app-empty-state>
 }
 

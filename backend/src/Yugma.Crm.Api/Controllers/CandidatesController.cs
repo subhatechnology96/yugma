@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr")]
+[Route("api/my-work")]
 [Produces("application/json")]
 [Authorize] // Recruitment is HR/admin only — the action filter below blocks everyone else
 public sealed class CandidatesController(YugmaDbContext db, ITenantContext tenant, HrAccess access) : ControllerBase, IAsyncActionFilter

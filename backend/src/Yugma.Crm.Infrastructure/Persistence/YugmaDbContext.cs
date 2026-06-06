@@ -32,6 +32,7 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<AttendanceOverride> AttendanceOverrides => Set<AttendanceOverride>();
+    public DbSet<AttendanceCorrection> AttendanceCorrections => Set<AttendanceCorrection>();
     public DbSet<PerformanceReview> PerformanceReviews => Set<PerformanceReview>();
     public DbSet<ReportingAssignment> ReportingAssignments => Set<ReportingAssignment>();
     public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();

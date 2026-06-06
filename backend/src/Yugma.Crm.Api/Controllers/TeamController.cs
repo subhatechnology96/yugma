@@ -15,7 +15,7 @@ namespace Yugma.Crm.Api.Controllers;
 /// baseline; effective-dated <see cref="ReportingAssignment"/> rows overlay it to compute the current line.
 /// </summary>
 [ApiController]
-[Route("api/hr/team")]
+[Route("api/my-work/team")]
 [Produces("application/json")]
 [Authorize] // reads scoped to self for non-privileged; reassignment requires HR/admin (CanManage)
 public sealed class TeamController(YugmaDbContext db, HrAccess access) : ControllerBase

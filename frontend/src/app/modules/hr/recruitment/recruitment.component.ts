@@ -319,7 +319,7 @@ const STAGES: { key: Stage; label: string; header: string; col: string }[] = [
 export class RecruitmentComponent {
   private readonly http = inject(HttpClient);
   private readonly messages = inject(MessageService);
-  private readonly base = `${environment.apiBaseUrl}/hr`;
+  private readonly base = `${environment.apiBaseUrl}/my-work`;
 
   protected readonly stages = STAGES;
   protected readonly lists = signal<Record<Stage, Candidate[]>>({ applied: [], screening: [], interview: [], offer: [], hired: [], rejected: [] });

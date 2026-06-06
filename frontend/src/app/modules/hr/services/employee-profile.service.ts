@@ -14,7 +14,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class EmployeeProfileService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBaseUrl}/hr/employees`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/employees`;
 
   overview(id: string): Observable<EmployeeOverview> {
     return this.http.get<EmployeeOverview>(`${this.base}/${id}/overview`);

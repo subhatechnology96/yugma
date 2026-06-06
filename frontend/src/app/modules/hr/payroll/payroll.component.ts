@@ -682,7 +682,7 @@ interface CtcDto {
 export class PayrollComponent {
   private readonly http = inject(HttpClient);
   private readonly messages = inject(MessageService);
-  private readonly base = `${environment.apiBaseUrl}/hr/payroll`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/payroll`;
 
   protected month = new Date();
   protected search = '';

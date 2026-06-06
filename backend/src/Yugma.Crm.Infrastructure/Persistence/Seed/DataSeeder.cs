@@ -38,6 +38,9 @@ public static class DataSeeder
         await SeedPersonaEmployeesAsync(db, ct);
         await SeedLeaveAsync(db, ct);
         await SeedAttendanceAsync(db, ct);
+        // After leave/attendance so the team's pending requests aren't wiped by those re-seed guards.
+        await SeedMayaTeamAsync(db, ct);
+        await SeedHrDepartmentAsync(db, ct);
         await SeedPayrollAsync(db, ct);
         await SeedCandidatesAsync(db, ct);
         await SeedJobOpeningsAsync(db, ct);
@@ -47,6 +50,7 @@ public static class DataSeeder
         await SeedAuditLogsAsync(db, ct);
         await SeedAppUsersAsync(db, ct);
         await SeedNotificationsAsync(db, ct);
+        await SeedPersonalNotificationsAsync(db, ct);
         await SeedSubscriptionsAsync(db, ct);
         await SeedAgentsAsync(db, ct);
 
@@ -316,6 +320,128 @@ public static class DataSeeder
 
         if (changed) await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Seeds a 5-person Engineering team reporting directly to Maya Manager (manager@yugma.io). Each
+    /// member also gets a pending request (a leave application and/or an attendance correction) routed to
+    /// Maya, so her "My Team · Approvals" inbox has real items to act on. Idempotent per email: a member
+    /// (and its seeded requests) is created only the first time it's missing.
+    /// </summary>
+    private static async Task SeedMayaTeamAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        var all = await db.Employees.IgnoreQueryFilters().ToListAsync(ct);
+        var maya = all.FirstOrDefault(e => e.Email.Value.Equals("manager@yugma.io", StringComparison.OrdinalIgnoreCase));
+        if (maya is null) return; // personas not seeded yet — nothing to hang the team off
+
+        var emails = all.Select(e => e.Email.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nextNum = all.Select(e => int.TryParse(e.Code.Replace("YUG-", "", StringComparison.OrdinalIgnoreCase), out var n) ? n : 0)
+            .DefaultIfEmpty(1000).Max();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var team = new[]
+        {
+            new MayaReport("Riya Sharma", "riya.sharma@yugma.io", "Software Engineer", 3, 18m, 4, "+91 99000 30001",
+                new[] { "TypeScript", "Angular" },
+                Leave: (LeaveType.Casual, 2, "Cousin's wedding at hometown", today.AddDays(6), today.AddDays(7)),
+                Correction: null),
+            new MayaReport("Arjun Nair", "arjun.nair@yugma.io", "Associate Engineer", 2, 13m, 4, "+91 99000 30002",
+                new[] { "Java", "Spring Boot" },
+                Leave: (LeaveType.Sick, 1, "Down with viral fever", today.AddDays(-1), today.AddDays(-1)),
+                Correction: (today.AddDays(-2), "present", "09:05", "18:30", "Forgot to punch in — was at the office on time")),
+            new MayaReport("Neha Verma", "neha.verma2@yugma.io", "Senior Software Engineer", 3, 24m, 5, "+91 99000 30003",
+                new[] { ".NET", "PostgreSQL" },
+                Leave: (LeaveType.Earned, 4, "Family vacation to Goa", today.AddDays(12), today.AddDays(15)),
+                Correction: null),
+            new MayaReport("Karan Gupta", "karan.gupta@yugma.io", "Software Engineer", 3, 19m, 3, "+91 99000 30004",
+                new[] { "React", "Node.js" },
+                Leave: null,
+                Correction: (today.AddDays(-1), "wfh", "09:30", "18:45", "Worked from home — network outage near office")),
+            new MayaReport("Sara Khan", "sara.khan@yugma.io", "Associate Engineer", 2, 12m, 4, "+91 99000 30005",
+                new[] { "Python", "FastAPI" },
+                Leave: (LeaveType.CompOff, 1, "Comp-off for the weekend release", today.AddDays(3), today.AddDays(3)),
+                Correction: null)
+        };
+
+        var changed = false;
+        foreach (var r in team)
+        {
+            if (emails.Contains(r.Email)) continue; // already seeded (member + its requests)
+            nextNum++;
+            var emp = Employee.Create(DemoTenant, $"YUG-{nextNum}",
+                PersonName.Create(r.Name), Email.Create(r.Email), PhoneNumber.Create(r.Phone),
+                "Engineering", r.Title, "Bengaluru", EmploymentType.FullTime, DateOnly.Parse("2023-03-01"),
+                r.Ctc, maya.Name.Full, r.Skills, "seed");
+            emp.RecordPerformance(r.Perf, "seed");
+            emp.SetBand(r.Band, "seed");
+            emp.SetManager(maya.Id, maya.Name.Full, "seed");
+            db.Employees.Add(emp);
+
+            if (r.Leave is { } lv)
+                db.LeaveRequests.Add(LeaveRequest.Create(DemoTenant, r.Name, lv.Type, lv.From, lv.To, lv.Days,
+                    LeaveStatus.Pending, lv.Reason, today.AddDays(-1), maya.Name.Full));
+
+            if (r.Correction is { } cr)
+                db.AttendanceCorrections.Add(AttendanceCorrection.Create(DemoTenant, emp.Id, r.Name, cr.Date,
+                    cr.Status, cr.InTime, cr.OutTime, cr.Reason, maya.Name.Full));
+
+            emails.Add(r.Email);
+            changed = true;
+        }
+
+        if (changed) await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Seeds a 5-person Human Resources department with a reporting chain that terminates at the CEO:
+    /// VP HR (L8) → CEO, Senior HR Manager (L6) → VP, HR Manager (L5) → Senior, and 2 HR Associates (L2) → HR Manager.
+    /// Each also gets an ACTIVE login (see <see cref="SeedAppUsersAsync"/>) so the HR access tiers can be tested.
+    /// Idempotent per email; processed top-down so each member can resolve its (just-created) manager by name.
+    /// </summary>
+    private static async Task SeedHrDepartmentAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        var all = await db.Employees.IgnoreQueryFilters().ToListAsync(ct);
+        var byName = all.GroupBy(e => e.Name.Full, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        if (!byName.ContainsKey("Aarav Verma")) return; // CEO must exist to anchor the chain
+        var emails = all.Select(e => e.Email.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nextNum = all.Select(e => int.TryParse(e.Code.Replace("YUG-", "", StringComparison.OrdinalIgnoreCase), out var n) ? n : 0)
+            .DefaultIfEmpty(1000).Max();
+
+        // Ordered top-down so each row's manager is already in byName (real or just-created).
+        var team = new (string Name, string Email, string Title, int Band, string ManagerName, decimal Ctc, byte Perf, string Phone)[]
+        {
+            ("Vivaan Kapoor", "hr.vp@yugma.io",     "VP, Human Resources", 8, "Aarav Verma",   96m, 5, "+91 99000 40001"),
+            ("Sameer Rao",    "hr.srmgr@yugma.io",  "Senior HR Manager",   6, "Vivaan Kapoor", 60m, 5, "+91 99000 40002"),
+            ("Leena Pillai",  "hr.mgr@yugma.io",    "HR Manager",          5, "Sameer Rao",    44m, 4, "+91 99000 40003"),
+            ("Ishan Mehta",   "hr.assoc1@yugma.io", "HR Associate",        2, "Leena Pillai",  14m, 4, "+91 99000 40004"),
+            ("Tara Singh",    "hr.assoc2@yugma.io", "HR Associate",        2, "Leena Pillai",  13m, 4, "+91 99000 40005")
+        };
+
+        var changed = false;
+        foreach (var r in team)
+        {
+            if (emails.Contains(r.Email)) continue; // already seeded
+            nextNum++;
+            var mgr = byName.GetValueOrDefault(r.ManagerName);
+            var emp = Employee.Create(DemoTenant, $"YUG-{nextNum}",
+                PersonName.Create(r.Name), Email.Create(r.Email), PhoneNumber.Create(r.Phone),
+                "Human Resources", r.Title, "Bengaluru", EmploymentType.FullTime, DateOnly.Parse("2021-06-01"),
+                r.Ctc, mgr?.Name.Full, null, "seed");
+            emp.RecordPerformance(r.Perf, "seed");
+            emp.SetBand(r.Band, "seed");
+            emp.SetManager(mgr?.Id, mgr?.Name.Full, "seed");
+            db.Employees.Add(emp);
+            byName[r.Name] = emp; // so the next row can report to this one
+            emails.Add(r.Email);
+            changed = true;
+        }
+        if (changed) await db.SaveChangesAsync(ct);
+    }
+
+    private sealed record MayaReport(
+        string Name, string Email, string Title, int Band, decimal Ctc, byte Perf, string Phone, string[] Skills,
+        (LeaveType Type, int Days, string Reason, DateOnly From, DateOnly To)? Leave,
+        (DateOnly Date, string Status, string? InTime, string? OutTime, string Reason)? Correction);
 
     /// <summary>Maps a free-text job title to a hierarchy band (1..10). Order matters — most senior first.</summary>
     private static int BandForTitle(string title)
@@ -851,7 +977,13 @@ public static class DataSeeder
             ("Aditya Admin",      "admin@yugma.io",      "Admin",   "IT Administrator",       "Information Technology"),
             ("Maya Manager",      "manager@yugma.io",    "Manager", "Engineering Manager",    "Engineering"),
             ("Hema Reddy",        "hr@yugma.io",         "Member",  "HR Manager",             "Human Resources"),
-            ("Aaron Associate",   "associate@yugma.io",  "Member",  "Associate Engineer",     "Engineering")
+            ("Aaron Associate",   "associate@yugma.io",  "Member",  "Associate Engineer",     "Engineering"),
+            // HR department logins (employee records + reporting chain seeded by SeedHrDepartmentAsync).
+            ("Vivaan Kapoor",     "hr.vp@yugma.io",      "Manager", "VP, Human Resources",    "Human Resources"),
+            ("Sameer Rao",        "hr.srmgr@yugma.io",   "Manager", "Senior HR Manager",      "Human Resources"),
+            ("Leena Pillai",      "hr.mgr@yugma.io",     "Manager", "HR Manager",             "Human Resources"),
+            ("Ishan Mehta",       "hr.assoc1@yugma.io",  "Member",  "HR Associate",           "Human Resources"),
+            ("Tara Singh",        "hr.assoc2@yugma.io",  "Member",  "HR Associate",           "Human Resources")
         };
         foreach (var p in personas)
         {
@@ -974,10 +1106,24 @@ public static class DataSeeder
         if (await db.Notifications.IgnoreQueryFilters().AnyAsync(ct)) return;
         var now = DateTime.UtcNow;
         db.Notifications.AddRange(
-            AppNotification.Create(DemoTenant, "Leave request pending",         "Rohan Mehta requested 3 days of casual leave starting May 20.", NotificationKind.Warn,    now.AddMinutes(-12), false, "/hr/leave"),
-            AppNotification.Create(DemoTenant, "Invoice INV-2026-0421 paid",    "Globex Industries cleared 84,500. Receipt #RC-1187 generated.", NotificationKind.Success, now.AddMinutes(-55), false, "/accounts"),
-            AppNotification.Create(DemoTenant, "Low stock alert",                "SKU MAT-0192 (Hex Bolts M8) below reorder point in WH-Pune.",   NotificationKind.Danger,  now.AddHours(-2),    true,  "/material"),
-            AppNotification.Create(DemoTenant, "Workflow approved",              "PO #PO-7782 was approved by Finance. Vendor notified.",         NotificationKind.Info,    now.AddHours(-5),    true,  "/workflow")
+            AppNotification.Create(DemoTenant, "Leave request pending",         "Rohan Mehta requested 3 days of casual leave starting May 20.", NotificationKind.Warn,    now.AddMinutes(-12), false, "/my-work/leave", audience: "hrManage"),
+            AppNotification.Create(DemoTenant, "Invoice INV-2026-0421 paid",    "Globex Industries cleared 84,500. Receipt #RC-1187 generated.", NotificationKind.Success, now.AddMinutes(-55), false, "/accounts", audience: "admin"),
+            AppNotification.Create(DemoTenant, "Low stock alert",                "SKU MAT-0192 (Hex Bolts M8) below reorder point in WH-Pune.",   NotificationKind.Danger,  now.AddHours(-2),    true,  "/material", audience: "admin"),
+            AppNotification.Create(DemoTenant, "Workflow approved",              "PO #PO-7782 was approved by Finance. Vendor notified.",         NotificationKind.Info,    now.AddHours(-5),    true,  "/workflow", audience: "admin")
+        );
+        await db.SaveChangesAsync(ct);
+    }
+
+    // Personal, recipient-scoped notifications for the demo persona logins so each user's inbox
+    // shows their own items rather than the org-wide broadcasts. Idempotent on RecipientEmail.
+    private static async Task SeedPersonalNotificationsAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        if (await db.Notifications.IgnoreQueryFilters().AnyAsync(n => n.RecipientEmail != null, ct)) return;
+        var now = DateTime.UtcNow;
+        db.Notifications.AddRange(
+            AppNotification.Create(DemoTenant, "Leave approved",          "Your sick leave on Jun 16 was approved by Maya Manager.",            NotificationKind.Success, now.AddHours(-3),    false, "/my-requests", recipientEmail: "associate@yugma.io"),
+            AppNotification.Create(DemoTenant, "Leave request submitted", "Your casual leave for Jun 10 is pending with Maya Manager.",          NotificationKind.Info,    now.AddDays(-1),     true,  "/my-requests", recipientEmail: "associate@yugma.io"),
+            AppNotification.Create(DemoTenant, "Approval needed",         "Aaron Associate requested sick leave on Jun 17. Review and decide.", NotificationKind.Warn,    now.AddMinutes(-30), false, "/my-work/leave",    recipientEmail: "manager@yugma.io")
         );
         await db.SaveChangesAsync(ct);
     }

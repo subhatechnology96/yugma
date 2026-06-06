@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr/leave")]
+[Route("api/my-work/leave")]
 [Produces("application/json")]
 [Authorize] // HR/admins manage all leave; everyone else sees and self-services only their own
 public sealed class LeaveController(YugmaDbContext db, ITenantContext tenant, HrAccess access) : ControllerBase

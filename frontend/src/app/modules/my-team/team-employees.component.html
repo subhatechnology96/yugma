@@ -1,44 +1,18 @@
 <app-page-header
-  eyebrow="My Work · People"
-  title="Employees"
-  subtitle="Manage your workforce — directory, roles, employment status and compensation."
->
-  <button pButton severity="secondary" outlined icon="pi pi-download" label="Export" (click)="export()"></button>
-  @if (canAdd()) {
-    <a routerLink="/my-work/employees/new">
-      <button pButton icon="pi pi-plus" label="Add employee"></button>
-    </a>
-  }
-</app-page-header>
+  eyebrow="My Team · People"
+  title="My Team"
+  subtitle="Everyone who reports to you. Open a profile to review their details, attendance, leave and performance."
+></app-page-header>
 
-@if (scope() === 'self') {
-  <div class="card px-4 py-2.5 mb-4 text-xs bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300">
-    <i class="pi pi-user mr-1"></i>You're viewing your own record. Only HR and administrators can see and manage the full directory.
-  </div>
-} @else if (scope() === 'team') {
-  <div class="card px-4 py-2.5 mb-4 text-xs bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
-    <i class="pi pi-users mr-1"></i>You're viewing your team (yourself and everyone who reports to you). HR and administrators see the full directory.
-  </div>
-}
-
-<app-hr-agent-rail
-  [keys]="['active.engagement', 'active.copilot', 'separation.attrition', 'separation.retention']"
-  title="Workforce intelligence" />
+<div class="card px-4 py-2.5 mb-4 text-xs bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+  <i class="pi pi-users mr-1"></i>You're viewing your direct and indirect reports. HR and administrators manage the full directory under My Work.
+</div>
 
 <!-- Mini KPIs -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-  <app-kpi-card
-    label="Total headcount" [value]="kpis().headcount" caption="Show all employees" icon="pi-users" tone="brand"
-    [interactive]="true" [active]="activeKpi() === 'all'" (cardClick)="selectKpi('all')" />
-  <app-kpi-card
-    label="Active" [value]="kpis().active" caption="Available to work today" icon="pi-check-circle" tone="emerald"
-    [interactive]="true" [active]="activeKpi() === 'active'" (cardClick)="selectKpi('active')" />
-  <app-kpi-card
-    label="On leave" [value]="kpis().onLeave" caption="Approved leave today" icon="pi-calendar" tone="amber"
-    [interactive]="true" [active]="activeKpi() === 'on-leave'" (cardClick)="selectKpi('on-leave')" />
-  <app-kpi-card
-    label="Avg. CTC (₹L)" [value]="kpis().avgCtc" format="1.1-1" caption="Sort by highest CTC" icon="pi-indian-rupee" tone="indigo"
-    [interactive]="true" [active]="activeKpi() === 'ctc'" (cardClick)="selectKpi('ctc')" />
+<div class="grid grid-cols-3 gap-4 mb-4">
+  <app-kpi-card label="Team size" [value]="kpis().size" caption="People reporting to you" icon="pi-users" tone="brand" />
+  <app-kpi-card label="Active" [value]="kpis().active" caption="Available to work today" icon="pi-check-circle" tone="emerald" />
+  <app-kpi-card label="On leave" [value]="kpis().onLeave" caption="On approved leave today" icon="pi-calendar" tone="amber" />
 </div>
 
 <!-- Table card -->
@@ -51,25 +25,10 @@
         pInputText
         [(ngModel)]="query"
         (keydown.enter)="onSearch()"
-        placeholder="Search by name, email, code, department…"
+        placeholder="Search your team by name, email, code, department…"
         class="w-full !pl-10 !rounded-lg"
       />
     </span>
-    <p-select
-      [options]="departments()"
-      [(ngModel)]="departmentFilter"
-      (onChange)="load()"
-      placeholder="Department"
-      styleClass="!rounded-lg"
-    />
-    <p-select
-      [options]="statuses"
-      [(ngModel)]="statusFilter"
-      (onChange)="onStatusFilterChange()"
-      placeholder="Status"
-      styleClass="!rounded-lg"
-    />
-    <button pButton severity="secondary" outlined icon="pi pi-filter" label="More filters"></button>
   </div>
 
   <!-- Table -->
@@ -126,23 +85,15 @@
         <td>
           <app-status-pill [tone]="statusTone(emp.status)">{{ statusLabel(emp.status) }}</app-status-pill>
         </td>
-        <td (click)="$event.stopPropagation()">
-          <button
-            pButton
-            text
-            rounded
-            icon="pi pi-ellipsis-v"
-            (click)="rowMenuRef.toggle($event)"
-            class="!text-surface-500"
-          ></button>
-          <p-menu #rowMenuRef [model]="rowMenu(emp)" [popup]="true" styleClass="!rounded-xl" />
+        <td>
+          <i class="pi pi-chevron-right text-surface-400"></i>
         </td>
       </tr>
     </ng-template>
     <ng-template pTemplate="emptymessage">
       <tr>
         <td colspan="8" class="py-10 text-center text-surface-500">
-          No employees match your filters.
+          No one reports to you yet, or no team members match your search.
         </td>
       </tr>
     </ng-template>

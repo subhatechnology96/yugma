@@ -30,7 +30,7 @@ interface EmpRow {
 }
 interface HierNode {
   id: string; name: string; code: string; designation: string; department: string;
-  band: number | null; levelCode: string; levelTitle: string; avatarUrl?: string; children: HierNode[];
+  band: number | null; levelCode: string; levelTitle: string; avatarUrl?: string; isFocus?: boolean; children: HierNode[];
 }
 interface TrailNode { employeeId: string; name: string; code: string; band: number | null; levelCode: string; levelTitle: string; designation: string; department: string; avatarUrl?: string; isYou: boolean; }
 interface Analytics {
@@ -51,8 +51,8 @@ interface Analytics {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-page-header eyebrow="My Work · Organization" title="Hierarchy Management"
-      subtitle="L1–L10 band system, reporting structure and trail-to-CEO. Drag to reassign, change levels and managers dynamically.">
+    <app-page-header eyebrow="My Work · Organization" title="Hierarchy"
+      subtitle="Your reporting line to the CEO and your team below. Search anyone to view their hierarchy.">
       @if (canManage()) {
         <button pButton severity="secondary" outlined icon="pi pi-upload" label="Bulk upload" (click)="openBulk()"></button>
         <button pButton icon="pi pi-user-plus" label="Add employee" (click)="openAdd()"></button>
@@ -88,9 +88,19 @@ interface Analytics {
     <!-- org structure -->
     <div class="card overflow-hidden mb-5">
       <div class="p-4 border-b border-surface-200 dark:border-surface-800 flex flex-wrap items-center gap-3">
-        <div class="section-title mr-auto">Organization tree</div>
+        <div class="mr-auto">
+          <div class="section-title">Organization tree</div>
+          @if (focusName()) { <div class="text-[11px] text-surface-500 mt-0.5">Showing {{ focusName() }}'s line to the CEO and their team</div> }
+        </div>
+        <span class="relative">
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs z-10"></i>
+          <p-select [options]="focusOptions()" [(ngModel)]="focusSel" (onChange)="onFocusChange()" [filter]="true" filterBy="label"
+            placeholder="View hierarchy for…" styleClass="!rounded-lg [&_.p-select-label]:!pl-7" [style]="{ minWidth: '15rem' }" />
+        </span>
+        @if (selfId() && focusId() !== selfId()) {
+          <button pButton severity="secondary" outlined size="small" icon="pi pi-user" label="My hierarchy" (click)="focusOnSelf()"></button>
+        }
         <p-selectButton [options]="viewOptions" [(ngModel)]="view" [allowEmpty]="false" styleClass="!text-xs" />
-        <p-select [options]="deptOptions()" [(ngModel)]="deptFilter" (onChange)="loadTree()" placeholder="All departments" [showClear]="true" styleClass="!rounded-lg" />
         <button pButton severity="secondary" text size="small" icon="pi pi-arrows-v" label="Expand all" (click)="expandAll(true)"></button>
         <button pButton severity="secondary" text size="small" icon="pi pi-minus" label="Collapse" (click)="expandAll(false)"></button>
       </div>
@@ -100,9 +110,10 @@ interface Analytics {
           <p-organizationChart [value]="chartNodes()" selectionMode="single" [collapsible]="true"
             (onNodeSelect)="onNodeSelect($event)" styleClass="hierarchy-chart">
             <ng-template let-node pTemplate="default">
-              <div class="flex flex-col items-center gap-1.5 px-3 py-2 min-w-[9rem]">
+              <div class="flex flex-col items-center gap-1.5 px-3 py-2 min-w-[9rem] rounded-lg"
+                [class]="node.data.isFocus ? 'ring-2 ring-brand-500 bg-brand-50/60 dark:bg-brand-500/10' : ''">
                 <app-avatar [name]="node.data.name" [image]="node.data.avatarUrl" size="sm" />
-                <div class="text-sm font-medium leading-tight text-center">{{ node.data.name }}</div>
+                <div class="text-sm font-medium leading-tight text-center">{{ node.data.name }}@if (node.data.isFocus) { <span class="text-[10px] text-brand-600 ml-1">(focus)</span> }</div>
                 <div class="text-[11px] text-surface-500 leading-tight text-center">{{ node.data.designation }}</div>
                 <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" [class]="bandClass(node.data.band)">
                   {{ node.data.levelCode }} · {{ node.data.levelTitle }}
@@ -120,8 +131,9 @@ interface Analytics {
             [draggableNodes]="canManage()" [droppableNodes]="canManage()" draggableScope="hier" droppableScope="hier"
             [validateDrop]="true" (onNodeDrop)="onDrop($event)" styleClass="!border-0 !p-0 text-sm">
             <ng-template let-node pTemplate="default">
-              <span class="inline-flex items-center gap-2">
-                <span class="font-medium">{{ node.data.name }}</span>
+              <span class="inline-flex items-center gap-2" [class.font-semibold]="node.data.isFocus">
+                <span class="font-medium" [class.text-brand-700]="node.data.isFocus" [class.dark:text-brand-300]="node.data.isFocus">{{ node.data.name }}</span>
+                @if (node.data.isFocus) { <span class="text-[10px] text-brand-600">(focus)</span> }
                 <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold" [class]="bandClass(node.data.band)">{{ node.data.levelCode }}</span>
                 <span class="text-[11px] text-surface-500">{{ node.data.designation }}</span>
               </span>
@@ -295,7 +307,7 @@ export class HierarchyManagementComponent {
   private readonly http = inject(HttpClient);
   private readonly toast = inject(MessageService);
   private readonly auth = inject(AuthService);
-  private readonly base = `${environment.apiBaseUrl}/hr/hierarchy`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/hierarchy`;
 
   private readonly hrAccess = inject(HrAccessService);
   // Department-aware: HR staff (and admins/owners) manage; everyone else is read-only / own-data.
@@ -308,6 +320,13 @@ export class HierarchyManagementComponent {
   protected readonly departments = signal<string[]>([]);
   protected readonly treeNodes = signal<TreeNode[]>([]);
   protected readonly chartNodes = signal<TreeNode[]>([]);
+
+  // Focused-lineage state: the org tree defaults to the signed-in user (self → CEO + their team),
+  // and a search lets you refocus on anyone.
+  protected readonly selfId = signal<string | null>(null);
+  protected readonly focusId = signal<string | null>(null);
+  protected readonly focusName = signal<string>('');
+  protected focusSel: string | null = null;
 
   protected view: 'chart' | 'tree' = 'chart';
   protected readonly viewOptions = [{ label: 'Org chart', value: 'chart' }, { label: 'Tree', value: 'tree' }];
@@ -346,13 +365,28 @@ export class HierarchyManagementComponent {
     const excludeId = this.mgrTarget()?.id;
     return this.managers().filter((m) => m.id !== excludeId).map((m) => ({ label: `${m.name} · ${m.levelTitle}`, value: m.id }));
   });
+  /** Everyone, for the "view hierarchy for…" search. */
+  protected readonly focusOptions = computed(() =>
+    this.managers().map((m) => ({ label: `${m.name} · ${m.levelTitle} · ${m.department}`, value: m.id }))
+  );
 
   constructor() {
     this.loadLevels();
     this.loadMeta();
     this.loadEmployees();
-    this.loadTree();
     this.loadAnalytics();
+    // Default the org tree to the signed-in user's own lineage; fall back to the full org if no linked record.
+    this.hrAccess.ensure().subscribe((acc) => {
+      const id = acc?.employeeId ?? null;
+      this.selfId.set(id);
+      if (id) {
+        this.focusName.set(acc?.name ?? '');
+        this.focusSel = id;
+        this.loadLineage(id);
+      } else {
+        this.loadTree();
+      }
+    });
   }
 
   // ---------------- loaders ----------------
@@ -376,8 +410,20 @@ export class HierarchyManagementComponent {
       this.chartNodes.set(this.toNodes(nodes, true));
     });
   }
+  /** Load one person's focused slice: their chain up to the CEO + their reporting subtree. */
+  loadLineage(id: string) {
+    this.focusId.set(id);
+    this.focusName.set(this.managers().find((m) => m.id === id)?.name ?? this.focusName());
+    this.http.get<HierNode[]>(`${this.base}/employee/${id}/lineage`).subscribe((nodes) => {
+      this.treeNodes.set(this.toNodes(nodes, true));
+      this.chartNodes.set(this.toNodes(nodes, true));
+    });
+  }
+  onFocusChange() { if (this.focusSel) this.loadLineage(this.focusSel); }
+  focusOnSelf() { const id = this.selfId(); if (id) { this.focusSel = id; this.loadLineage(id); } }
+  private reloadTree() { const f = this.focusId(); if (f) this.loadLineage(f); else this.loadTree(); }
   private loadAnalytics() { this.http.get<Analytics>(`${this.base}/analytics`).subscribe((a) => this.analytics.set(a)); }
-  private refresh() { this.loadEmployees(); this.loadTree(); this.loadAnalytics(); this.loadMeta(); }
+  private refresh() { this.loadEmployees(); this.reloadTree(); this.loadAnalytics(); this.loadMeta(); }
 
   onSearch() { clearTimeout(this.searchTimer); this.searchTimer = setTimeout(() => this.loadEmployees(), 250); }
 
@@ -451,7 +497,7 @@ export class HierarchyManagementComponent {
     if (newManagerId === drag.id) return;
     this.http.post(`${this.base}/employee/${drag.id}/manager`, { managerId: newManagerId, reason: 'Drag-and-drop reassignment', actedBy: this.actor() }).subscribe({
       next: () => { this.toast.add({ severity: 'success', summary: 'Reassigned', detail: `${drag.name} → ${drop?.name ?? 'top of org'}.` }); this.refresh(); },
-      error: (err) => { this.fail(err); this.loadTree(); }
+      error: (err) => { this.fail(err); this.reloadTree(); }
     });
   }
 

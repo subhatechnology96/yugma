@@ -190,8 +190,8 @@ export class EmployeesListComponent implements OnInit {
 
   rowMenu(emp: Employee): MenuItem[] {
     return [
-      { label: 'View profile', icon: 'pi pi-user', command: () => this.router.navigate(['/hr/employees', emp.id]) },
-      { label: 'Edit', icon: 'pi pi-pencil', command: () => this.router.navigate(['/hr/employees', emp.id], { queryParams: { edit: 1 } }) },
+      { label: 'View profile', icon: 'pi pi-user', command: () => this.router.navigate(['/my-work/employees', emp.id]) },
+      { label: 'Edit', icon: 'pi pi-pencil', command: () => this.router.navigate(['/my-work/employees', emp.id], { queryParams: { edit: 1 } }) },
       { label: 'Send message', icon: 'pi pi-envelope' },
       { separator: true },
       {

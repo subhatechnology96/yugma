@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr/agents")]
+[Route("api/my-work/agents")]
 [Produces("application/json")]
 [AllowAnonymous]
 public sealed class AgentsController(YugmaDbContext db, AgentRuntime runtime) : ControllerBase

@@ -41,12 +41,11 @@ public static class AttendanceRosterFactory
             .OrderBy(e => e.Name.Full)
             .Select(e =>
             {
-                // 1) manual correction wins, 2) persisted record from Postgres, 3) generated fallback (gaps only)
-                if (overrides != null && overrides.TryGetValue(e.Id, out var ov))
-                    return ApplyOverride(e, ov, config, shiftLabel, isWeekend);
-                if (!isWeekend && records != null && records.TryGetValue(e.Id, out var rec))
-                    return RowFromRecord(e, rec, config, shiftLabel);
-                return BuildRow(e, date, isWeekend, config, shiftLabel);
+                AttendanceOverride? ov = null;
+                AttendanceRecord? rec = null;
+                overrides?.TryGetValue(e.Id, out ov);
+                records?.TryGetValue(e.Id, out rec);
+                return BuildOne(e, date, config, ov, rec);
             })
             .ToList();
 
@@ -75,6 +74,22 @@ public static class AttendanceRosterFactory
         return new AttendanceRosterDto(
             date, date.DayOfWeek.ToString(), isWeekend,
             visible.Count, summary, departments, visible);
+    }
+
+    /// <summary>
+    /// Resolves a single employee's row for one day using the same precedence as the roster:
+    /// 1) manual correction, 2) persisted record (weekdays only), 3) generated fallback. Used by the
+    /// monthly calendar to build a per-day timeline without materialising the whole company board.
+    /// </summary>
+    public static AttendanceRowDto BuildOne(
+        Employee e, DateOnly date, AttendanceConfig config,
+        AttendanceOverride? ov = null, AttendanceRecord? rec = null)
+    {
+        var isWeekend = config.WeekendDays.Contains((int)date.DayOfWeek);
+        var shiftLabel = isWeekend ? "Weekly off" : $"General · {config.ShiftStart}–{config.ShiftEnd}";
+        if (ov != null) return ApplyOverride(e, ov, config, shiftLabel, isWeekend);
+        if (!isWeekend && rec != null) return RowFromRecord(e, rec, config, shiftLabel);
+        return BuildRow(e, date, isWeekend, config, shiftLabel);
     }
 
     private static AttendanceRowDto BuildRow(Employee e, DateOnly date, bool isWeekend, AttendanceConfig cfg, string shiftLabel)

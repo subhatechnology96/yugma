@@ -130,7 +130,7 @@ export class SidebarComponent {
   readonly collapsed = input<boolean>(false);
   readonly toggleCollapse = output<void>();
 
-  private readonly openGroups = signal<Set<string>>(new Set(['My Work']));
+  private readonly openGroups = signal<Set<string>>(new Set(['My Work', 'HR Work', 'My Team']));
 
   /** Whether the current user may see a nav item with the given access requirement. */
   private canSee(requires?: NavAccess): boolean {
@@ -144,6 +144,9 @@ export class SidebarComponent {
         return this.hrAccess.canManage();
       case 'teamLead':
         return this.hrAccess.canManage() || this.hrAccess.isTeamLead();
+      case 'hasReports':
+        // Strictly someone who manages people — excludes HR/admins who have no team.
+        return this.hrAccess.isTeamLead();
     }
   }
 
@@ -159,19 +162,15 @@ export class SidebarComponent {
   }
 
   /**
-   * Replaces the static "Employees" item with user-relative entries:
-   * associate → "My Profile"; manager and above → "My Profile" + "My Team" (the scoped directory).
+   * Resolves dynamic items to user-relative links. A `dynamic: 'profile'` item becomes a link to the
+   * signed-in user's own employee record; it's hidden if the account has no linked employee record.
+   * The full "Employees" directory lives under HR Work (static, hrManage-gated).
    */
   private expandEmployees(children: NavItem[]): NavItem[] {
-    const acc = this.hrAccess.access();
-    const empId = acc?.employeeId ?? null;
-    const scope = acc?.scope ?? 'self';
+    const empId = this.hrAccess.access()?.employeeId ?? null;
     return children.flatMap((c) => {
-      if (c.route !== '/hr/employees') return [c];
-      const out: NavItem[] = [];
-      if (empId) out.push({ label: 'Profile', icon: 'pi-user', route: `/hr/employees/${empId}` });
-      if (scope !== 'self') out.push({ label: 'My Team', icon: 'pi-users', route: '/hr/employees', exact: true });
-      return out.length ? out : [c]; // fallback: no employee record → keep the directory
+      if (c.dynamic !== 'profile') return [c];
+      return empId ? [{ ...c, route: `/my-work/employees/${empId}` }] : [];
     });
   }
 

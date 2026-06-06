@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr/payroll")]
+[Route("api/my-work/payroll")]
 [Produces("application/json")]
 [Authorize] // HR/admins see the company register; everyone else sees only their own payslip
 public sealed class PayrollController(YugmaDbContext db, HrAccess access) : ControllerBase

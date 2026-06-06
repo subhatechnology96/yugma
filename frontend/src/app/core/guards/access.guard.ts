@@ -8,9 +8,10 @@ import { NavAccess } from '../../layout/nav-items';
 /**
  * Route guard mirroring the sidebar's nav-access rules. If the current user doesn't meet the requirement,
  * they're redirected to the dashboard (so typing a restricted URL can't reach a hidden page).
- * - 'admin'    → admin / owner / super_admin role (resolved synchronously from the JWT)
- * - 'hrManage' → HR-department members or admins (awaits GET /api/hr/access)
- * - 'teamLead' → the above, or anyone with reports
+ * - 'admin'      → admin / owner / super_admin role (resolved synchronously from the JWT)
+ * - 'hrManage'   → HR-department members or admins (awaits GET /api/hr/access)
+ * - 'teamLead'   → the above, or anyone with reports
+ * - 'hasReports' → strictly someone with reports (a real manager) — excludes HR/admins without a team
  */
 export const accessGuard =
   (requires: NavAccess): CanActivateFn =>
@@ -27,7 +28,12 @@ export const accessGuard =
 
     return hrAccess.ensure().pipe(
       map((a) => {
-        const ok = requires === 'hrManage' ? !!a?.canManage : !!(a?.canManage || a?.isTeamLead);
+        const ok =
+          requires === 'hrManage'
+            ? !!a?.canManage
+            : requires === 'hasReports'
+              ? !!a?.isTeamLead
+              : !!(a?.canManage || a?.isTeamLead); // 'teamLead'
         return ok ? true : home();
       })
     );

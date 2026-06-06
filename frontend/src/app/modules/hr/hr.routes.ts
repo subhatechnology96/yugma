@@ -54,8 +54,8 @@ export const HR_ROUTES: Routes = [
   {
     path: 'performance',
     loadComponent: () =>
-      import('./performance/performance.component').then((m) => m.PerformanceComponent),
-    data: { breadcrumb: 'Performance' }
+      import('./performance/my-performance.component').then((m) => m.MyPerformanceComponent),
+    data: { breadcrumb: 'My Performance' }
   },
   {
     path: 'analytics',
@@ -65,17 +65,11 @@ export const HR_ROUTES: Routes = [
     data: { breadcrumb: 'HR Analytics' }
   },
   {
-    path: 'team',
-    canActivate: [accessGuard('teamLead')],
-    loadComponent: () =>
-      import('./team/team-management.component').then((m) => m.TeamManagementComponent),
-    data: { breadcrumb: 'Team Management' } // centralized hierarchy assignment
-  },
-  {
     path: 'hierarchy',
-    canActivate: [accessGuard('teamLead')],
+    // Open to everyone: the page defaults to the signed-in user's own lineage (read-only for
+    // non-managers); manage actions are still gated by canManage in the component.
     loadComponent: () =>
       import('./hierarchy/hierarchy-management.component').then((m) => m.HierarchyManagementComponent),
-    data: { breadcrumb: 'Hierarchy Management' } // L1–L10 bands, org tree, trail-to-CEO
+    data: { breadcrumb: 'Hierarchy' } // L1–L10 bands, org tree, trail-to-CEO
   }
 ];

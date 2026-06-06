@@ -23,9 +23,9 @@ export const APP_ROUTES: Routes = [
         data: { breadcrumb: 'Dashboard', icon: 'pi-home' }
       },
       {
-        path: 'hr',
+        path: 'my-work',
         loadChildren: () => import('./modules/hr/hr.routes').then((m) => m.HR_ROUTES),
-        data: { breadcrumb: 'Human Resources', icon: 'pi-users' }
+        data: { breadcrumb: 'My Work', icon: 'pi-users' }
       },
       {
         path: 'crm',
@@ -46,6 +46,19 @@ export const APP_ROUTES: Routes = [
         loadChildren: () =>
           import('./modules/reports/reports.routes').then((m) => m.REPORTS_ROUTES),
         data: { breadcrumb: 'Reports & Analytics', icon: 'pi-chart-bar' }
+      },
+      {
+        path: 'my-team',
+        canActivate: [accessGuard('hasReports')],
+        loadChildren: () =>
+          import('./modules/my-team/my-team.routes').then((m) => m.MY_TEAM_ROUTES),
+        data: { breadcrumb: 'My Team', icon: 'pi-users' }
+      },
+      {
+        path: 'my-requests',
+        loadComponent: () =>
+          import('./modules/my-requests/my-requests.component').then((m) => m.MyRequestsComponent),
+        data: { breadcrumb: 'My Requests', icon: 'pi-inbox' }
       },
       {
         path: 'notifications',

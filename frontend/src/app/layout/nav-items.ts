@@ -1,11 +1,12 @@
 /**
  * Access tag controlling whether a nav item is shown:
- * - undefined  → any signed-in user
- * - 'teamLead' → HR/admins, or a team lead (has reports)
- * - 'hrManage' → HR-department members or admins/owners
- * - 'admin'    → admin / owner / super_admin roles
+ * - undefined    → any signed-in user
+ * - 'hasReports' → strictly someone with direct/indirect reports (a real manager) — NOT HR/admins without a team
+ * - 'teamLead'   → HR/admins, or a team lead (has reports)
+ * - 'hrManage'   → HR-department members or admins/owners (the "HR Work" area)
+ * - 'admin'      → admin / owner / super_admin roles
  */
-export type NavAccess = 'teamLead' | 'hrManage' | 'admin';
+export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin';
 
 export interface NavItem {
   label: string;
@@ -18,25 +19,50 @@ export interface NavItem {
   requires?: NavAccess;
   /** Use exact route matching for the active highlight (e.g. a list route that is a prefix of a detail route). */
   exact?: boolean;
+  /** Resolved at render time to a user-relative link (e.g. 'profile' → the signed-in user's own record). */
+  dynamic?: 'profile';
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { group: 'Overview', label: 'Dashboard', icon: 'pi-th-large', route: '/dashboard' },
   {
+    // Personal employee self-service — every signed-in user sees this.
     group: 'Operations',
     label: 'My Work',
-    icon: 'pi-users',
+    icon: 'pi-user',
     children: [
-      { label: 'AI Agents Hub', icon: 'pi-sparkles', route: '/hr/agents', badge: 'GPT-5', badgeTone: 'info', requires: 'hrManage' },
-      { label: 'Employees', icon: 'pi-id-card', route: '/hr/employees' },
-      { label: 'Attendance', icon: 'pi-clock', route: '/hr/attendance' },
-      { label: 'Leave', icon: 'pi-calendar', route: '/hr/leave' },
-      { label: 'Payroll', icon: 'pi-money-bill', route: '/hr/payroll' },
-      { label: 'Recruitment', icon: 'pi-user-plus', route: '/hr/recruitment', requires: 'hrManage' },
-      { label: 'Performance', icon: 'pi-chart-line', route: '/hr/performance' },
-      { label: 'Team Management', icon: 'pi-sitemap', route: '/hr/team', requires: 'teamLead' },
-      { label: 'Hierarchy', icon: 'pi-share-alt', route: '/hr/hierarchy', requires: 'teamLead' },
-      { label: 'HR Analytics', icon: 'pi-chart-pie', route: '/hr/analytics', requires: 'hrManage' }
+      { label: 'Profile', icon: 'pi-id-card', dynamic: 'profile' },
+      { label: 'Attendance', icon: 'pi-clock', route: '/my-work/attendance' },
+      { label: 'Leave', icon: 'pi-calendar', route: '/my-work/leave' },
+      { label: 'My Requests', icon: 'pi-inbox', route: '/my-requests' },
+      { label: 'Payroll', icon: 'pi-money-bill', route: '/my-work/payroll' },
+      { label: 'My Performance', icon: 'pi-chart-line', route: '/my-work/performance' },
+      { label: 'Hierarchy', icon: 'pi-share-alt', route: '/my-work/hierarchy' }
+    ]
+  },
+  {
+    // HR-department functions — visible to HR staff and admins/owners (hrManage).
+    group: 'Operations',
+    label: 'HR Work',
+    icon: 'pi-briefcase',
+    requires: 'hrManage',
+    children: [
+      { label: 'Employees', icon: 'pi-id-card', route: '/my-work/employees', exact: true },
+      { label: 'Recruitment', icon: 'pi-user-plus', route: '/my-work/recruitment' },
+      { label: 'AI Agents Hub', icon: 'pi-sparkles', route: '/my-work/agents', badge: 'GPT-5', badgeTone: 'info' },
+      { label: 'HR Analytics', icon: 'pi-chart-pie', route: '/my-work/analytics' }
+    ]
+  },
+  {
+    // Manager view — only people who actually have reports (NOT HR/admins without a team).
+    group: 'Operations',
+    label: 'My Team',
+    icon: 'pi-users',
+    requires: 'hasReports',
+    children: [
+      { label: 'Employee', icon: 'pi-id-card', route: '/my-team/employees' },
+      { label: 'Approvals', icon: 'pi-check-square', route: '/my-team/approvals' },
+      { label: 'Performance', icon: 'pi-chart-line', route: '/my-team/performance' }
     ]
   },
   {

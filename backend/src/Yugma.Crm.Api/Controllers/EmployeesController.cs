@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Yugma.Crm.Api.Controllers;
 
 [ApiController]
-[Route("api/hr/employees")]
+[Route("api/my-work/employees")]
 [Produces("application/json")]
 [Authorize] // identity needed to scope the directory; HR / admins see all, others see only themselves
 public sealed class EmployeesController(ISender mediator, HrAccess access) : ControllerBase
@@ -50,6 +50,26 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
         // Managers see only their own row (or their team if a lead); HR/admins see all (VisibleIds == null).
         var restrictToIds = a.VisibleIds?.ToArray();
         var result = await mediator.Send(new ListEmployeesQuery(page, pageSize, search, department, status, sortBy, sortDir, restrictToIds), ct);
+        return ToActionResult(result);
+    }
+
+    /// <summary>The current user's team — everyone who reports to them, directly or transitively (excludes self).</summary>
+    [HttpGet("team")]
+    [ProducesResponseType(typeof(PagedResult<EmployeeDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Team(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? department = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? sortBy = "fullName",
+        [FromQuery] string? sortDir = "asc",
+        CancellationToken ct = default)
+    {
+        var a = await access.ResolveAsync(ct);
+        // Strictly the user's reports. An empty set (no reports) returns no rows by design.
+        var ids = a.ManagedIds.ToArray();
+        var result = await mediator.Send(new ListEmployeesQuery(page, pageSize, search, department, status, sortBy, sortDir, ids), ct);
         return ToActionResult(result);
     }
 

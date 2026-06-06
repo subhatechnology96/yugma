@@ -98,7 +98,7 @@ export interface AgentConfigPatch {
 @Injectable({ providedIn: 'root' })
 export class AgentService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBaseUrl}/hr/agents`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/agents`;
 
   private readonly _agents = signal<AgentInfo[]>([]);
   private readonly _runs = signal<AgentRun[]>([]);

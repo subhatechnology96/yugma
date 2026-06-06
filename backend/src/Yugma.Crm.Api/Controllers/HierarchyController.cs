@@ -17,7 +17,7 @@ namespace Yugma.Crm.Api.Controllers;
 /// history), bulk upload and org analytics. <c>ManagerId</c> on <see cref="Employee"/> is authoritative.
 /// </summary>
 [ApiController]
-[Route("api/hr/hierarchy")]
+[Route("api/my-work/hierarchy")]
 [Produces("application/json")]
 [Authorize] // reads scoped to self for non-privileged; mutations require HR/admin (CanManage)
 public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant, HrAccess access) : ControllerBase
@@ -107,7 +107,7 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
                 .Where(k => visited.Add(k.Id))
                 .OrderByDescending(k => k.Band ?? 0).ThenBy(k => k.Name.Full)
                 .Select(Build).ToList();
-            return new TreeNodeDto(e.Id, e.Name.Full, e.Code, e.Designation, e.Department, e.Band, LevelCode(e.Band), LevelTitle(e.Band), e.AvatarUrl, kids);
+            return new TreeNodeDto(e.Id, e.Name.Full, e.Code, e.Designation, e.Department, e.Band, LevelCode(e.Band), LevelTitle(e.Band), e.AvatarUrl, false, kids);
         }
 
         var tree = roots.Select(Build).ToList();
@@ -134,8 +134,7 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
     [HttpGet("employee/{id:guid}/trail")]
     public async Task<IActionResult> Trail(Guid id, CancellationToken ct)
     {
-        var acc = await access.ResolveAsync(ct);
-        if (!acc.CanSeeEmployee(id)) return Forbidden("You can only view your own or your team's reporting trail.");
+        // Open like the org tree/lineage: anyone may view a reporting trail to the CEO.
         await EnsureLevelsAsync(ct);
         var emps = await db.Employees.AsNoTracking().ToListAsync(ct);
         var byId = emps.ToDictionary(e => e.Id);
@@ -163,6 +162,46 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
         }
         // trail[0] = employee … trail[^1] = CEO (top)
         return Ok(trail);
+    }
+
+    // ---------------- focused lineage (chain up to CEO + the person's own subtree) ----------------
+    /// <summary>
+    /// A focused org slice for one person: the spine of managers from the CEO down to them, with the
+    /// person's full reporting subtree (direct + indirect reports) nested underneath. Powers the
+    /// "my hierarchy" default view and the "view someone's hierarchy" search. Returns a single root.
+    /// </summary>
+    [HttpGet("employee/{id:guid}/lineage")]
+    public async Task<IActionResult> Lineage(Guid id, CancellationToken ct)
+    {
+        await EnsureLevelsAsync(ct);
+        var emps = await db.Employees.AsNoTracking().ToListAsync(ct);
+        var byId = emps.ToDictionary(e => e.Id);
+        if (!byId.TryGetValue(id, out var focus)) return NotFound();
+
+        var children = emps.Where(e => e.ManagerId != null).GroupBy(e => e.ManagerId!.Value).ToDictionary(g => g.Key, g => g.ToList());
+
+        // The focus person's own subtree (themselves + everyone who rolls up to them).
+        var visited = new HashSet<Guid>();
+        TreeNodeDto BuildSubtree(Employee e, bool isFocus)
+        {
+            visited.Add(e.Id);
+            var kids = (children.TryGetValue(e.Id, out var list) ? list : new List<Employee>())
+                .Where(k => visited.Add(k.Id))
+                .OrderByDescending(k => k.Band ?? 0).ThenBy(k => k.Name.Full)
+                .Select(k => BuildSubtree(k, false)).ToList();
+            return new TreeNodeDto(e.Id, e.Name.Full, e.Code, e.Designation, e.Department, e.Band, LevelCode(e.Band), LevelTitle(e.Band), e.AvatarUrl, isFocus, kids);
+        }
+        var node = BuildSubtree(focus, true);
+
+        // Nest under each ancestor up to the top (cycle-guarded).
+        var seen = new HashSet<Guid> { focus.Id };
+        var cur = focus;
+        while (cur.ManagerId is Guid mid && byId.TryGetValue(mid, out var mgr) && seen.Add(mgr.Id))
+        {
+            node = new TreeNodeDto(mgr.Id, mgr.Name.Full, mgr.Code, mgr.Designation, mgr.Department, mgr.Band, LevelCode(mgr.Band), LevelTitle(mgr.Band), mgr.AvatarUrl, false, new List<TreeNodeDto> { node });
+            cur = mgr;
+        }
+        return Ok(new[] { node });
     }
 
     // ---------------- add employee ----------------
@@ -206,7 +245,7 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
 
         var byId = await db.Employees.AsNoTracking().ToDictionaryAsync(e => e.Id, ct);
         var directs = byId.Values.Where(e => e.ManagerId != null).GroupBy(e => e.ManagerId!.Value).ToDictionary(g => g.Key, g => g.Count());
-        return Created($"/api/hr/hierarchy/employee/{emp.Id}", EmpDto(emp, byId, directs));
+        return Created($"/api/my-work/hierarchy/employee/{emp.Id}", EmpDto(emp, byId, directs));
     }
 
     // ---------------- change band ----------------
@@ -432,5 +471,5 @@ public sealed class HierarchyController(YugmaDbContext db, ITenantContext tenant
         db.AuditLogs.Add(AuditLog.Create(tenantId, DateTime.UtcNow, Actor(actedBy), action, resource,
             HttpContext.Connection.RemoteIpAddress?.ToString(), AuditOutcome.Success));
 
-    private sealed record TreeNodeDto(Guid Id, string Name, string Code, string Designation, string Department, int? Band, string LevelCode, string LevelTitle, string? AvatarUrl, List<TreeNodeDto> Children);
+    private sealed record TreeNodeDto(Guid Id, string Name, string Code, string Designation, string Department, int? Band, string LevelCode, string LevelTitle, string? AvatarUrl, bool IsFocus, List<TreeNodeDto> Children);
 }

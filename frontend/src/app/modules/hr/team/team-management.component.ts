@@ -208,7 +208,7 @@ export class TeamManagementComponent {
   private readonly http = inject(HttpClient);
   private readonly messages = inject(MessageService);
   private readonly auth = inject(AuthService);
-  private readonly base = `${environment.apiBaseUrl}/hr/team`;
+  private readonly base = `${environment.apiBaseUrl}/my-work/team`;
 
   private readonly hrAccess = inject(HrAccessService);
   protected readonly canManage = computed(() => this.hrAccess.canManage());
