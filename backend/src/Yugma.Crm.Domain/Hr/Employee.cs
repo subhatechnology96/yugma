@@ -19,6 +19,10 @@ public sealed class Employee : Entity<Guid>, IAggregateRoot
     public string? Manager { get; private set; }
     /// <summary>Reporting manager's employee id. Authoritative for the org tree / reporting trail (the <see cref="Manager"/> string is kept in sync for legacy screens).</summary>
     public Guid? ManagerId { get; private set; }
+    /// <summary>The HR person responsible for this employee (their assigned HR partner). Null = unassigned. The <see cref="HrPartner"/> name snapshot is kept in sync for display.</summary>
+    public Guid? HrPartnerId { get; private set; }
+    /// <summary>Name snapshot of the assigned HR partner (kept in sync with <see cref="HrPartnerId"/> for display, like <see cref="Manager"/>).</summary>
+    public string? HrPartner { get; private set; }
     /// <summary>Hierarchy band 1..10 (L1 Trainee … L10 CEO). Null until assigned.</summary>
     public int? Band { get; private set; }
     public EmploymentType EmploymentType { get; private set; }
@@ -114,6 +118,14 @@ public sealed class Employee : Entity<Guid>, IAggregateRoot
     {
         ManagerId = managerId;
         Manager = string.IsNullOrWhiteSpace(managerName) ? null : managerName.Trim();
+        Touch(updatedBy);
+    }
+
+    /// <summary>Assigns the HR partner by id, keeping the name snapshot in sync. Pass null to unassign.</summary>
+    public void AssignHrPartner(Guid? hrPartnerId, string? hrPartnerName, string? updatedBy)
+    {
+        HrPartnerId = hrPartnerId;
+        HrPartner = string.IsNullOrWhiteSpace(hrPartnerName) ? null : hrPartnerName.Trim();
         Touch(updatedBy);
     }
 

@@ -89,6 +89,38 @@ export class EmployeeDetailComponent implements OnInit {
   private readonly hrAccess = inject(HrAccessService);
   protected readonly canEdit = computed(() => this.hrAccess.canManage());
 
+  /** HR-partner assignment (HR/admin only). Options are the HR-department people in the directory. */
+  protected readonly hrPartnerOptions = computed(() =>
+    this.svc
+      .all()
+      .filter((e) => e.department === 'Human Resources')
+      .map((e) => ({ label: `${e.fullName} · ${e.designation}`, value: e.id }))
+  );
+  protected hrPartnerDraft: string | null = null;
+  protected readonly savingPartner = signal(false);
+
+  saveHrPartner() {
+    const emp = this.employee();
+    if (!emp) return;
+    this.savingPartner.set(true);
+    this.svc.assignHrPartner(emp.id, this.hrPartnerDraft).subscribe({
+      next: (updated) => {
+        this.employee.set(updated);
+        this.hrPartnerDraft = updated.hrPartnerId ?? null;
+        this.savingPartner.set(false);
+        this.messages.add({
+          severity: 'success',
+          summary: 'HR partner updated',
+          detail: updated.hrPartner ? `Now ${updated.hrPartner}` : 'Unassigned'
+        });
+      },
+      error: () => {
+        this.savingPartner.set(false);
+        this.messages.add({ severity: 'error', summary: 'Could not update HR partner' });
+      }
+    });
+  }
+
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
@@ -98,6 +130,7 @@ export class EmployeeDetailComponent implements OnInit {
     this.employeeId = id;
     this.svc.byId(id).subscribe((e) => {
       this.employee.set(e ?? null);
+      this.hrPartnerDraft = e?.hrPartnerId ?? null;
       this.loading.set(false);
     });
 

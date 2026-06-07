@@ -118,6 +118,13 @@ export class EmployeeService {
     );
   }
 
+  /** Assigns (or clears, when hrPartnerId is null) the HR person responsible for an employee. HR/admin only. */
+  assignHrPartner(id: string, hrPartnerId: string | null): Observable<Employee> {
+    return this.http.put<Employee>(`${this.base}/${id}/hr-partner`, { hrPartnerId }).pipe(
+      tap(() => this.refresh())
+    );
+  }
+
   remove(id: string): Observable<boolean> {
     return this.http.delete<void>(`${this.base}/${id}`).pipe(tap()) as unknown as Observable<boolean>;
   }

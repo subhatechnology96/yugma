@@ -113,6 +113,9 @@ public sealed class LeaveController(YugmaDbContext db, ITenantContext tenant, Hr
         var employeeName = acc.CanManage ? body.Employee?.Trim() : acc.SelfName;
         if (string.IsNullOrWhiteSpace(employeeName))
             return BadRequest(new { error = "validation", message = "Employee is required." });
+        // HR is scoped to their book: they may only apply on behalf of employees they are the HR partner for.
+        if (acc.CanManage && employeeName != acc.SelfName && !acc.CanManageEmployee(employeeName))
+            return Forbidden("You can only apply leave for employees you are the HR partner for.");
         body = body with { Employee = employeeName };
 
         var type = ParseType(body.Type);
@@ -150,7 +153,7 @@ public sealed class LeaveController(YugmaDbContext db, ITenantContext tenant, Hr
         var req = await db.LeaveRequests.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (req is null) return NotFound();
         var acc = await access.ResolveAsync(ct);
-        if (!acc.CanManage && req.Employee != acc.SelfName && !acc.ManagedNames.Contains(req.Employee))
+        if (req.Employee != acc.SelfName && !acc.CanManageEmployee(req.Employee))
             return Forbidden("You can only change your own or your team's leave requests.");
         if (req.Status != LeaveStatus.Pending)
             return BadRequest(new { message = "Only pending requests can be changed." });
@@ -184,8 +187,7 @@ public sealed class LeaveController(YugmaDbContext db, ITenantContext tenant, Hr
 
         // Approve/reject (manageOnly): HR/admins, or a team lead acting on their report's request.
         // Cancel: the above, plus a user cancelling their own request.
-        var allowed = acc.CanManage
-            || acc.ManagedNames.Contains(req.Employee)
+        var allowed = acc.CanManageEmployee(req.Employee)
             || (!manageOnly && req.Employee == acc.SelfName);
         if (!allowed)
             return Forbidden(manageOnly ? "You can only approve or reject your team's leave." : "You can only cancel your own or your team's leave.");

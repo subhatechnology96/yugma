@@ -92,6 +92,7 @@
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Department</th>
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Designation</th>
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Location</th>
+        <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">HR Partner</th>
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Joined</th>
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Performance</th>
         <th class="!font-semibold !text-xs !uppercase !tracking-wider !text-surface-500">Status</th>
@@ -112,6 +113,13 @@
         <td>{{ emp.department }}</td>
         <td class="text-sm">{{ emp.designation }}</td>
         <td class="text-sm">{{ emp.location }}</td>
+        <td class="text-sm">
+          @if (emp.hrPartner) {
+            <span class="text-surface-700 dark:text-surface-200">{{ emp.hrPartner }}</span>
+          } @else {
+            <span class="text-surface-400">—</span>
+          }
+        </td>
         <td class="text-sm text-surface-500">{{ emp.joinedAt | date: 'mediumDate' }}</td>
         <td>
           <div class="flex items-center gap-0.5 text-amber-500">
@@ -141,7 +149,7 @@
     </ng-template>
     <ng-template pTemplate="emptymessage">
       <tr>
-        <td colspan="8" class="py-10 text-center text-surface-500">
+        <td colspan="9" class="py-10 text-center text-surface-500">
           No employees match your filters.
         </td>
       </tr>

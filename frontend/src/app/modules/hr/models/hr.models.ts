@@ -18,6 +18,9 @@ export interface Employee {
   ctcLakhs: number;
   performance: 1 | 2 | 3 | 4 | 5;
   skills: string[];
+  /** The HR person responsible for this employee, and their name snapshot. */
+  hrPartnerId?: string | null;
+  hrPartner?: string | null;
 }
 
 export interface LeaveRequest {

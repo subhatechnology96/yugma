@@ -809,6 +809,319 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.ToTable("crm_notes", "yugma");
                 });
 
+            modelBuilder.Entity("Yugma.Crm.Domain.Finance.BankAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<decimal>("OpeningBalance")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("finance_bank_accounts", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Finance.BankTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("Reconciled")
+                        .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AccountId", "Date");
+
+                    b.ToTable("finance_bank_transactions", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Finance.Expense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Employee")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("finance_expenses", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Finance.FinanceDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Partner")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("numeric(16,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Kind", "Status");
+
+                    b.ToTable("finance_documents", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Finance.FinanceFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SignatureStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("SignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Signer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "SignatureStatus");
+
+                    b.ToTable("finance_files", "yugma");
+                });
+
             modelBuilder.Entity("Yugma.Crm.Domain.Hr.Attendance.AttendanceCorrection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1217,6 +1530,14 @@ namespace Yugma.Crm.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("HrPartner")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("HrPartnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hr_partner_id");
+
                     b.Property<DateOnly>("JoinedAt")
                         .HasColumnType("date");
 
@@ -1265,9 +1586,87 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "HrPartnerId");
+
                     b.HasIndex("TenantId", "ManagerId");
 
                     b.ToTable("employees", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Hr.Fleet.Vehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("AcquiredAt")
+                        .HasColumnType("date");
+
+                    b.Property<string>("AssignedTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FuelType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateOnly?>("NextServiceAt")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("OdometerKm")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Plate")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Plate")
+                        .IsUnique();
+
+                    b.ToTable("hr_vehicles", "yugma");
                 });
 
             modelBuilder.Entity("Yugma.Crm.Domain.Hr.Leave.LeaveRequest", b =>
@@ -1434,6 +1833,12 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.Property<int>("Employees")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -1459,12 +1864,141 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "Cycle")
                         .IsUnique();
 
                     b.ToTable("payroll_runs", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Hr.Payroll.Payslip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Basic")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Bonus")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<decimal>("Conveyance")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("Edited")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Esi")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Gross")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Hra")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<int>("LopDays")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("LopDeduction")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Net")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("OtherDeductions")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("OtherEarnings")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<int>("PayableDays")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Pf")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Pt")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Special")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Tds")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RunId", "EmployeeId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "RunId");
+
+                    b.ToTable("payslips", "yugma");
                 });
 
             modelBuilder.Entity("Yugma.Crm.Domain.Hr.Performance.PerformanceReview", b =>
@@ -1674,6 +2208,13 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.Property<int>("ExperienceYears")
                         .HasColumnType("integer");
 
+                    b.Property<DateOnly?>("InterviewScheduledAt")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Interviewer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateOnly>("LastActivityAt")
                         .HasColumnType("date");
 
@@ -1692,6 +2233,13 @@ namespace Yugma.Crm.Infrastructure.Migrations
 
                     b.Property<byte>("Rating")
                         .HasColumnType("smallint");
+
+                    b.Property<string>("ResumeFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("ResumeUrl")
+                        .HasColumnType("text");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -1803,6 +2351,80 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Status");
 
                     b.ToTable("job_openings", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Hr.Referrals.EmployeeReferral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BonusAmount")
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<bool>("BonusPaid")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("CandidateEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("CandidateName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateOnly>("ReferredAt")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Referrer")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("hr_referrals", "yugma");
                 });
 
             modelBuilder.Entity("Yugma.Crm.Domain.Hr.Tax.InvestmentDeclaration", b =>
@@ -2295,6 +2917,146 @@ namespace Yugma.Crm.Infrastructure.Migrations
                     b.ToTable("tenants", "yugma");
                 });
 
+            modelBuilder.Entity("Yugma.Crm.Domain.Services.ServiceOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Customer")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("DueAt")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("EstimatedHours")
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string[]>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Type", "Stage");
+
+                    b.ToTable("service_orders", "yugma");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Services.ServiceTimesheet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Hours")
+                        .HasColumnType("numeric(6,2)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Person")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "OrderId");
+
+                    b.HasIndex("TenantId", "Person", "Date");
+
+                    b.ToTable("service_timesheets", "yugma");
+                });
+
             modelBuilder.Entity("Yugma.Crm.Domain.Subscriptions.ModuleSubscription", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2618,6 +3380,235 @@ namespace Yugma.Crm.Infrastructure.Migrations
 
                     b.Navigation("Phone")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Hr.Recruiting.Candidate", b =>
+                {
+                    b.OwnsMany("Yugma.Crm.Domain.Hr.Recruiting.InterviewFeedback", "Feedback", b1 =>
+                        {
+                            b1.Property<Guid>("CandidateId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            b1.Property<DateTime>("At")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("Comments")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Interviewer")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<byte>("Rating")
+                                .HasColumnType("smallint");
+
+                            b1.Property<string>("Recommendation")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Round")
+                                .HasColumnType("text");
+
+                            b1.HasKey("CandidateId", "__synthesizedOrdinal");
+
+                            b1.ToTable("candidates", "yugma");
+
+                            b1.ToJson("Feedback");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CandidateId");
+                        });
+
+                    b.OwnsOne("Yugma.Crm.Domain.Hr.Recruiting.Onboarding", "Onboarding", b1 =>
+                        {
+                            b1.Property<Guid>("CandidateId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<DateTime?>("AcceptanceAt")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("AcceptanceNote")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("AcceptanceStatus")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<DateTime?>("BackgroundAt")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("BackgroundNote")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("BackgroundProvider")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("BackgroundStatus")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<DateOnly?>("JoiningDate")
+                                .HasColumnType("date");
+
+                            b1.Property<decimal?>("OfferCtcLakhs")
+                                .HasColumnType("numeric");
+
+                            b1.Property<string>("OfferFileName")
+                                .HasColumnType("text");
+
+                            b1.Property<DateTime?>("OfferReleasedAt")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("OfferStatus")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("OfferUrl")
+                                .HasColumnType("text");
+
+                            b1.Property<DateTime>("StartedAt")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("Step")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.HasKey("CandidateId");
+
+                            b1.ToTable("candidates", "yugma");
+
+                            b1.ToJson("Onboarding");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CandidateId");
+
+                            b1.OwnsMany("Yugma.Crm.Domain.Hr.Recruiting.OnboardingDocument", "Documents", b2 =>
+                                {
+                                    b2.Property<Guid>("OnboardingCandidateId")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<int>("__synthesizedOrdinal")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("integer");
+
+                                    b2.Property<DateTime?>("At")
+                                        .HasColumnType("timestamp with time zone");
+
+                                    b2.Property<string>("By")
+                                        .HasColumnType("text");
+
+                                    b2.Property<string>("Name")
+                                        .IsRequired()
+                                        .HasColumnType("text");
+
+                                    b2.Property<string>("Note")
+                                        .HasColumnType("text");
+
+                                    b2.Property<string>("Status")
+                                        .IsRequired()
+                                        .HasColumnType("text");
+
+                                    b2.HasKey("OnboardingCandidateId", "__synthesizedOrdinal");
+
+                                    b2.ToTable("candidates", "yugma");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("OnboardingCandidateId");
+                                });
+
+                            b1.Navigation("Documents");
+                        });
+
+                    b.OwnsMany("Yugma.Crm.Domain.Hr.Recruiting.StageEvent", "Activity", b1 =>
+                        {
+                            b1.Property<Guid>("CandidateId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            b1.Property<DateTime>("At")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("By")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("From")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Note")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("To")
+                                .HasColumnType("text");
+
+                            b1.HasKey("CandidateId", "__synthesizedOrdinal");
+
+                            b1.ToTable("candidates", "yugma");
+
+                            b1.ToJson("Activity");
+
+                            b1.WithOwner()
+                                .HasForeignKey("CandidateId");
+                        });
+
+                    b.Navigation("Activity");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("Onboarding");
+                });
+
+            modelBuilder.Entity("Yugma.Crm.Domain.Services.ServiceOrder", b =>
+                {
+                    b.OwnsMany("Yugma.Crm.Domain.Services.ServiceEvent", "Activity", b1 =>
+                        {
+                            b1.Property<Guid>("ServiceOrderId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            b1.Property<DateTime>("At")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("By")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("From")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("Note")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("To")
+                                .HasColumnType("text");
+
+                            b1.HasKey("ServiceOrderId", "__synthesizedOrdinal");
+
+                            b1.ToTable("service_orders", "yugma");
+
+                            b1.ToJson("Activity");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ServiceOrderId");
+                        });
+
+                    b.Navigation("Activity");
                 });
 
             modelBuilder.Entity("Yugma.Crm.Domain.Crm.Deal", b =>

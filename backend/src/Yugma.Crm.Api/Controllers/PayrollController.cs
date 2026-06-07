@@ -1,5 +1,8 @@
 using Yugma.Crm.Api.Access;
 using Yugma.Crm.Api.Payroll;
+using Yugma.Crm.Domain.Abstractions;
+using Yugma.Crm.Domain.Hr.Leave;
+using Yugma.Crm.Domain.Hr.Payroll;
 using Yugma.Crm.Domain.Hr.Tax;
 using Yugma.Crm.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +15,7 @@ namespace Yugma.Crm.Api.Controllers;
 [Route("api/my-work/payroll")]
 [Produces("application/json")]
 [Authorize] // HR/admins see the company register; everyone else sees only their own payslip
-public sealed class PayrollController(YugmaDbContext db, HrAccess access) : ControllerBase
+public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenantContext tenant) : ControllerBase
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
     private static int FyStartYear => Today.Month >= 4 ? Today.Year : Today.Year - 1;
@@ -232,4 +235,283 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access) : Cont
             .ToListAsync(ct);
         return Ok(rows);
     }
+
+    // ============================ editable pay runs (HR) ============================
+
+    /// <summary>The editable monthly pay runs (HR/admin only).</summary>
+    [HttpGet("runs")]
+    public async Task<IActionResult> Runs(CancellationToken ct)
+    {
+        if ((await access.ResolveAsync(ct)).Restricted) return HrOnly();
+        var runs = await db.PayrollRuns.AsNoTracking().Where(r => r.Year > 0)
+            .OrderByDescending(r => r.Year).ThenByDescending(r => r.Month).ToListAsync(ct);
+        return Ok(runs.Select(RunDto));
+    }
+
+    [HttpGet("runs/{id:guid}")]
+    public async Task<IActionResult> Run(Guid id, CancellationToken ct)
+    {
+        if ((await access.ResolveAsync(ct)).Restricted) return HrOnly();
+        var run = await db.PayrollRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (run is null) return NotFound();
+        var slips = await db.Payslips.AsNoTracking().Where(p => p.RunId == id).OrderBy(p => p.EmployeeName).ToListAsync(ct);
+        return Ok(new { run = RunDto(run), payslips = slips.Select(SlipDto) });
+    }
+
+    /// <summary>Generates (or returns the existing) pay run for a month — one payslip per employee, with LOP pulled from approved unpaid leave.</summary>
+    [HttpPost("runs")]
+    public async Task<IActionResult> Generate([FromBody] GenerateBody body, CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.Restricted) return HrOnly();
+        var year = body.Year ?? Today.Year;
+        var month = body.Month ?? Today.Month;
+
+        var existing = await db.PayrollRuns.FirstOrDefaultAsync(r => r.Year == year && r.Month == month, ct);
+        if (existing is not null)
+        {
+            var slips0 = await db.Payslips.AsNoTracking().Where(p => p.RunId == existing.Id).OrderBy(p => p.EmployeeName).ToListAsync(ct);
+            return Ok(new { run = RunDto(existing), payslips = slips0.Select(SlipDto) });
+        }
+
+        var rules = await RulesAsync(ct);
+        var employees = await db.Employees.AsNoTracking().ToListAsync(ct);
+        var lop = await LopDaysAsync(year, month, ct);
+        var payableDays = DateTime.DaysInMonth(year, month);
+
+        var run = PayrollRun.ForMonth(tenant.TenantId, year, month, $"PAY-{year}-{month:00}", acc.SelfName);
+        db.PayrollRuns.Add(run);
+        var payslips = employees.Select(e =>
+        {
+            var bc = PayrollFactory.BaseComponents(e.CtcLakhs, rules);
+            return Payslip.Create(tenant.TenantId, run.Id, e.Id, e.Name.Full, e.Code, e.Department, e.Designation,
+                year, month, payableDays, lop.GetValueOrDefault(e.Name.Full, 0),
+                bc.Basic, bc.Hra, bc.Special, bc.Conveyance, 0m, 0m, bc.Pf, bc.Esi, bc.Pt, bc.Tds, 0m, acc.SelfName);
+        }).ToList();
+        db.Payslips.AddRange(payslips);
+        run.Recalc(payslips.Sum(p => p.Net), payslips.Count, acc.SelfName);
+        await db.SaveChangesAsync(ct);
+        return Ok(new { run = RunDto(run), payslips = payslips.OrderBy(p => p.EmployeeName).Select(SlipDto) });
+    }
+
+    /// <summary>HR edits one employee's payslip (LOP days, bonus, ad-hoc earnings/deductions) — Net recomputes.</summary>
+    [HttpPut("runs/{id:guid}/payslips/{pid:guid}")]
+    public async Task<IActionResult> EditPayslip(Guid id, Guid pid, [FromBody] EditPayslipBody body, CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.Restricted) return HrOnly();
+        var p = await db.Payslips.FirstOrDefaultAsync(x => x.Id == pid && x.RunId == id, ct);
+        if (p is null) return NotFound();
+        p.Edit(body.LopDays, body.Bonus, body.OtherEarnings, body.OtherDeductions, body.Notes, acc.SelfName);
+        await RecalcRunAsync(id, acc.SelfName, ct);
+        await db.SaveChangesAsync(ct);
+        return Ok(SlipDto(p));
+    }
+
+    /// <summary>Bulk-edit selected (or all) payslips in a run: add a bonus / deduction, or recompute LOP from leave.</summary>
+    [HttpPost("runs/{id:guid}/bulk")]
+    public async Task<IActionResult> Bulk(Guid id, [FromBody] BulkBody body, CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.Restricted) return HrOnly();
+        var q = db.Payslips.Where(p => p.RunId == id);
+        if (body.PayslipIds is { Length: > 0 }) q = q.Where(p => body.PayslipIds.Contains(p.Id));
+        var slips = await q.ToListAsync(ct);
+        if (slips.Count == 0) return NotFound();
+        switch ((body.Action ?? "").ToLowerInvariant())
+        {
+            case "bonus": foreach (var s in slips) s.Adjust(body.Amount ?? 0, 0, acc.SelfName); break;
+            case "deduction": foreach (var s in slips) s.Adjust(0, body.Amount ?? 0, acc.SelfName); break;
+            case "recompute-lop":
+                var lop = await LopDaysAsync(slips[0].Year, slips[0].Month, ct);
+                foreach (var s in slips) s.SetLopDays(lop.GetValueOrDefault(s.EmployeeName, 0), acc.SelfName);
+                break;
+            default: return BadRequest(new { message = "Unknown bulk action." });
+        }
+        await RecalcRunAsync(id, acc.SelfName, ct);
+        await db.SaveChangesAsync(ct);
+        return Ok(new { updated = slips.Count });
+    }
+
+    [HttpPost("runs/{id:guid}/status")]
+    public async Task<IActionResult> RunStatus(Guid id, [FromBody] RunStatusBody body, CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.Restricted) return HrOnly();
+        if (!Enum.TryParse<PayrollStatus>(body.Status, true, out var s)) return BadRequest(new { message = "Invalid status." });
+        var run = await db.PayrollRuns.FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (run is null) return NotFound();
+        run.SetStatus(s, acc.SelfName);
+        await db.SaveChangesAsync(ct);
+        return Ok(RunDto(run));
+    }
+
+    private async Task RecalcRunAsync(Guid id, string? by, CancellationToken ct)
+    {
+        var run = await db.PayrollRuns.FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (run is null) return;
+        var slips = await db.Payslips.Where(p => p.RunId == id).ToListAsync(ct);
+        run.Recalc(slips.Sum(p => p.Net), slips.Count, by);
+    }
+
+    /// <summary>LOP days per employee for a month = overlap of approved Unpaid leave with the month.</summary>
+    private async Task<Dictionary<string, int>> LopDaysAsync(int year, int month, CancellationToken ct)
+    {
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        var unpaid = await db.LeaveRequests.AsNoTracking()
+            .Where(r => r.Status == LeaveStatus.Approved && r.Type == LeaveType.Unpaid && r.FromDate <= monthEnd && r.ToDate >= monthStart)
+            .ToListAsync(ct);
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in unpaid)
+        {
+            var from = r.FromDate > monthStart ? r.FromDate : monthStart;
+            var to = r.ToDate < monthEnd ? r.ToDate : monthEnd;
+            var days = to.DayNumber - from.DayNumber + 1;
+            if (days > 0) map[r.Employee] = map.GetValueOrDefault(r.Employee, 0) + days;
+        }
+        return map;
+    }
+
+    /// <summary>The full, printable payslip document for one employee/run — branded, with the income-tax computation.</summary>
+    [HttpGet("runs/{id:guid}/payslips/{pid:guid}/document")]
+    public async Task<IActionResult> PayslipDocument(Guid id, Guid pid, CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        var p = await db.Payslips.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pid && x.RunId == id, ct);
+        if (p is null) return NotFound();
+        if (acc.Restricted && acc.SelfId != p.EmployeeId) return HrOnly();   // HR sees anyone; an employee sees only their own
+
+        var emp = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == p.EmployeeId, ct);
+        var rules = await RulesAsync(ct);
+        var year = p.Year; var month = p.Month;
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        var fixedMonthly = p.Basic + p.Hra + p.Special + p.Conveyance;
+        var annual = (emp?.CtcLakhs ?? Math.Round(fixedMonthly * 12 / 100_000m, 2)) * 100_000m;
+        var std = rules.StandardDeduction;
+        var taxOnIncome = PayrollFactory.AnnualTax(annual, rules);
+        var cess = Math.Round(taxOnIncome * rules.CessPct, 0);
+        var taxPayable = taxOnIncome + cess;
+        // financial-year progress (Apr → Mar)
+        var fyStart = month >= 4 ? year : year - 1;
+        var monthsElapsed = ((year - fyStart) * 12 + month) - 4 + 1;        // 1..12 within the FY
+        var deductedSoFar = Math.Round(p.Tds * Math.Max(0, monthsElapsed - 1), 0);
+        var balanceTax = Math.Max(0m, taxPayable - deductedSoFar - p.Tds);
+
+        var fyMonths = Enumerable.Range(0, 12).Select(i =>
+        {
+            var mm = new DateOnly(fyStart, 4, 1).AddMonths(i);
+            var amount = (mm.Year == year && mm.Month == month) ? p.Tds
+                : (mm.Year < year || (mm.Year == year && mm.Month < month)) ? p.Tds : 0m;
+            return new { month = mm.ToString("MMM yy"), amount };
+        }).ToList();
+
+        var (pan, uan, pfNo, bank, account) = StatutoryIds(p.EmployeeId, p.EmployeeName);
+
+        var earnings = new List<object>
+        {
+            new { label = "Basic Salary", amount = p.Basic },
+            new { label = "HRA", amount = p.Hra },
+            new { label = "Conveyance Allowance", amount = p.Conveyance },
+            new { label = "Flexible Allowance", amount = p.Special }
+        };
+        if (p.Bonus > 0) earnings.Add(new { label = "Performance Bonus", amount = p.Bonus });
+        if (p.OtherEarnings > 0) earnings.Add(new { label = "Other Earnings", amount = p.OtherEarnings });
+
+        var deductions = new List<object> { new { label = "Ee PF contribution", amount = p.Pf } };
+        if (p.Esi > 0) deductions.Add(new { label = "Ee ESI contribution", amount = p.Esi });
+        deductions.Add(new { label = "Professional Tax", amount = p.Pt });
+        deductions.Add(new { label = "Income Tax", amount = p.Tds });
+        if (p.LopDeduction > 0) deductions.Add(new { label = "Loss of Pay", amount = p.LopDeduction });
+        if (p.OtherDeductions > 0) deductions.Add(new { label = "Other Deductions", amount = p.OtherDeductions });
+
+        return Ok(new
+        {
+            company = new { name = "Subha Technology", legal = "Subha Technology Pvt. Ltd." },
+            title = $"Salary Payslip for the Month of {monthStart:MMM}-{year}",
+            payPeriod = new { from = monthStart, to = monthEnd, label = $"Pay Period {monthStart:dd.MM.yyyy} to {monthEnd:dd.MM.yyyy}" },
+            employee = new
+            {
+                id = p.Code,
+                personId = p.Code,
+                name = p.EmployeeName,
+                designation = p.Designation,
+                department = p.Department,
+                band = emp?.Band?.ToString() ?? "—",
+                doj = emp?.JoinedAt,
+                location = emp?.Location ?? "—",
+                pan, uan, pfNo, bankName = bank, bankAccount = account,
+                daysWorked = p.PayableDays - p.LopDays,
+                lwpCurrent = p.LopDays
+            },
+            standardSalary = new object[]
+            {
+                new { label = "Basic Salary", amount = p.Basic },
+                new { label = "HRA", amount = p.Hra },
+                new { label = "Conveyance Allowance", amount = p.Conveyance },
+                new { label = "Flexible Allowance", amount = p.Special }
+            },
+            totalStandard = fixedMonthly,
+            earnings,
+            grossEarnings = p.Gross,
+            deductions,
+            grossDeductions = p.TotalDeductions,
+            netPay = p.Net,
+            tax = new
+            {
+                currentMonthTaxable = p.Gross,
+                projectedStandardSalary = fixedMonthly * 12,
+                grossSalary = annual,
+                standardDeduction = std,
+                incomeUnderHeadSalary = Math.Max(0m, annual - std),
+                grossTotalIncome = Math.Max(0m, annual - std),
+                totalIncome = Math.Max(0m, annual - std),
+                taxOnTotalIncome = taxOnIncome,
+                healthEducationCess = cess,
+                taxPayable,
+                taxDeductedSoFar = deductedSoFar,
+                balanceTax
+            },
+            chapterVI = new object[] { new { label = "Provident Fund", amount = p.Pf * 12 } },
+            monthlyTax = fyMonths
+        });
+    }
+
+    private static (string Pan, string Uan, string PfNo, string Bank, string Account) StatutoryIds(Guid id, string name)
+    {
+        static long Fnv(string s) { unchecked { long h = 1469598103934665603; foreach (var c in s) { h ^= c; h *= 1099511628211; } return Math.Abs(h); } }
+        var seed = Fnv(id.ToString());
+        var letters = new string((name.ToUpperInvariant().Where(char.IsLetter).DefaultIfEmpty('X').Take(5)).ToArray()).PadRight(5, 'X');
+        var pan = $"{letters}{seed % 9000 + 1000}{(char)('A' + (int)(seed % 26))}";
+        var uan = (100000000000 + seed % 899999999999).ToString();
+        var pfNo = $"SUBHA/BG/{seed % 9000 + 1000}/{seed % 900000 + 100000}";
+        var account = (seed % 900000000000 + 100000000000).ToString();
+        return (pan, uan, pfNo, "AXIS BANK LTD", account);
+    }
+
+    private IActionResult HrOnly() => StatusCode(StatusCodes.Status403Forbidden, new { message = "Payroll runs are available to HR and administrators only." });
+
+    private static string MonthName(int year, int month) => new DateOnly(year, Math.Clamp(month, 1, 12), 1).ToString("MMMM yyyy");
+
+    private static object RunDto(PayrollRun r) => new
+    {
+        id = r.Id, year = r.Year, month = r.Month, label = MonthName(r.Year, r.Month), cycle = r.Cycle,
+        status = r.Status.ToString().ToLowerInvariant(), total = r.Total, employees = r.Employees, runAt = r.RunAt, notes = r.Notes
+    };
+
+    private static object SlipDto(Payslip p) => new
+    {
+        id = p.Id, employeeId = p.EmployeeId, employee = p.EmployeeName, code = p.Code, department = p.Department, designation = p.Designation,
+        payableDays = p.PayableDays, lopDays = p.LopDays,
+        basic = p.Basic, hra = p.Hra, special = p.Special, conveyance = p.Conveyance, bonus = p.Bonus, otherEarnings = p.OtherEarnings,
+        pf = p.Pf, esi = p.Esi, pt = p.Pt, tds = p.Tds, otherDeductions = p.OtherDeductions, lopDeduction = p.LopDeduction,
+        gross = p.Gross, totalDeductions = p.TotalDeductions, net = p.Net, edited = p.Edited, notes = p.Notes
+    };
+
+    public sealed record GenerateBody(int? Year, int? Month);
+    public sealed record EditPayslipBody(int? LopDays, decimal? Bonus, decimal? OtherEarnings, decimal? OtherDeductions, string? Notes);
+    public sealed record BulkBody(Guid[]? PayslipIds, string? Action, decimal? Amount);
+    public sealed record RunStatusBody(string Status);
 }

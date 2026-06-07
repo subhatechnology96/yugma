@@ -42,6 +42,8 @@ Desktop.ini
 
 ## Claude Code — keep shared project settings, ignore the local/personal overrides
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/*.lock
 
 ## Misc
 *.log

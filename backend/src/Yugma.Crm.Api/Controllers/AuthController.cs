@@ -34,6 +34,15 @@ public sealed class AuthController(YugmaDbContext db, IJwtTokenService jwt) : Co
             return StatusCode(StatusCodes.Status403Forbidden, new { error = "account_inactive", message = $"This account is {user.Status.ToString().ToLowerInvariant()}. Contact an administrator." });
 
         var roles = RolesFor(user.Role);
+        // Department-based module access (mirrors how HR works): a user's department grants the matching module role.
+        var deptRole = (user.Department ?? "").Trim().ToLowerInvariant() switch
+        {
+            "services" => "services",
+            "finance" => "finance",
+            _ => null
+        };
+        if (deptRole is not null && !roles.Contains(deptRole))
+            roles = roles.Append(deptRole).ToArray();
         var permissions = user.Role.Equals("Member", StringComparison.OrdinalIgnoreCase)
             ? new[] { "self.read", "leave.apply", "profile.update" }
             : new[] { "*" };

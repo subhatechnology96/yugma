@@ -78,6 +78,11 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
+        var a = await access.ResolveAsync(ct);
+        // Scope detail reads the same way as the directory: admins see anyone, HR their book, leads their team, others themselves.
+        if (!a.CanSeeEmployee(id))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "forbidden", message = "You can only view employees you are responsible for." });
+
         var result = await mediator.Send(new GetEmployeeByIdQuery(id), ct);
         return ToActionResult(result);
     }
@@ -113,6 +118,19 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
         return ToActionResult(await mediator.Send(new ChangeEmployeeStatusCommand(id, body.Status), ct));
     }
 
+    /// <summary>Assigns (or clears, when hrPartnerId is null) the HR person responsible for this employee.</summary>
+    [HttpPut("{id:guid}/hr-partner")]
+    [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> AssignHrPartner(Guid id, [FromBody] AssignHrPartnerBody body, CancellationToken ct)
+    {
+        var a = await access.ResolveAsync(ct);
+        if (!a.CanManage)
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "forbidden", message = "Only HR or an administrator can assign HR partners." });
+
+        return ToActionResult(await mediator.Send(new AssignHrPartnerCommand(id, body.HrPartnerId), ct));
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess) return Ok(result.Value);
@@ -128,4 +146,5 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
 
     public sealed record UpdateEmployeeBody(string Email, string Phone, string Department, string Designation, string Location, string? Manager, IReadOnlyList<string> Skills);
     public sealed record ChangeStatusBody(string Status);
+    public sealed record AssignHrPartnerBody(Guid? HrPartnerId);
 }

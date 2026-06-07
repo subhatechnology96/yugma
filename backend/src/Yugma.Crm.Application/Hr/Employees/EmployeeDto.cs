@@ -18,4 +18,6 @@ public sealed record EmployeeDto(
     IReadOnlyList<string> Skills,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
-    string? AvatarUrl);
+    string? AvatarUrl,
+    Guid? HrPartnerId = null,
+    string? HrPartner = null);

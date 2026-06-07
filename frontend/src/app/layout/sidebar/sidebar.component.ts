@@ -140,6 +140,10 @@ export class SidebarComponent {
     switch (requires) {
       case 'admin':
         return isAdmin;
+      case 'services':
+        return isAdmin || roles.some((r) => r === 'services');
+      case 'finance':
+        return isAdmin || roles.some((r) => r === 'finance');
       case 'hrManage':
         return this.hrAccess.canManage();
       case 'teamLead':

@@ -33,5 +33,7 @@ internal static class EmployeeMapping
         e.Skills,
         e.CreatedAt,
         e.UpdatedAt,
-        e.AvatarUrl);
+        e.AvatarUrl,
+        e.HrPartnerId,
+        e.HrPartner);
 }

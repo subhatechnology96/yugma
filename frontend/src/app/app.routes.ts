@@ -34,6 +34,18 @@ export const APP_ROUTES: Routes = [
         data: { breadcrumb: 'CRM', icon: 'pi-briefcase' }
       },
       {
+        path: 'services',
+        canActivate: [accessGuard('services')],
+        loadChildren: () => import('./modules/services/services.routes').then((m) => m.SERVICES_ROUTES),
+        data: { breadcrumb: 'Services', icon: 'pi-wrench' }
+      },
+      {
+        path: 'finance',
+        canActivate: [accessGuard('finance')],
+        loadChildren: () => import('./modules/finance/finance.routes').then((m) => m.FINANCE_ROUTES),
+        data: { breadcrumb: 'Finance', icon: 'pi-wallet' }
+      },
+      {
         path: 'workflow',
         canActivate: [accessGuard('admin')],
         loadChildren: () =>

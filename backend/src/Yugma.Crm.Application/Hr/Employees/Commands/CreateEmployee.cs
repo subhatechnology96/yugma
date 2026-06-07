@@ -20,7 +20,8 @@ public sealed record CreateEmployeeCommand(
     decimal CtcLakhs,
     string? Manager,
     IReadOnlyList<string> Skills,
-    string? AvatarUrl = null) : IRequest<Result<EmployeeDto>>;
+    string? AvatarUrl = null,
+    Guid? HrPartnerId = null) : IRequest<Result<EmployeeDto>>;
 
 public sealed class CreateEmployeeValidator : AbstractValidator<CreateEmployeeCommand>
 {
@@ -76,6 +77,12 @@ internal sealed class CreateEmployeeHandler(
             req.Skills,
             tenant.UserName,
             req.AvatarUrl);
+
+        if (req.HrPartnerId is Guid partnerId)
+        {
+            var partner = await repo.GetAsync(partnerId, ct);
+            if (partner is not null) employee.AssignHrPartner(partner.Id, partner.Name.Full, tenant.UserName);
+        }
 
         await repo.AddAsync(employee, ct);
 

@@ -1,8 +1,11 @@
 using Yugma.Crm.Domain.Agents;
 using Yugma.Crm.Domain.Audit;
 using Yugma.Crm.Domain.Crm;
+using Yugma.Crm.Domain.Finance;
 using Yugma.Crm.Domain.Hr;
 using Yugma.Crm.Domain.Hr.Attendance;
+using Yugma.Crm.Domain.Hr.Fleet;
+using Yugma.Crm.Domain.Hr.Referrals;
 using Yugma.Crm.Domain.Hr.Documents;
 using Yugma.Crm.Domain.Hr.Leave;
 using Yugma.Crm.Domain.Hr.Payroll;
@@ -11,6 +14,7 @@ using Yugma.Crm.Domain.Hr.ValueObjects;
 using Yugma.Crm.Domain.Identity;
 using Yugma.Crm.Domain.Notifications;
 using Yugma.Crm.Domain.Reference;
+using Yugma.Crm.Domain.Services;
 using Yugma.Crm.Domain.Subscriptions;
 using Yugma.Crm.Infrastructure.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -41,12 +45,16 @@ public static class DataSeeder
         // After leave/attendance so the team's pending requests aren't wiped by those re-seed guards.
         await SeedMayaTeamAsync(db, ct);
         await SeedHrDepartmentAsync(db, ct);
+        await AssignHrPartnersAsync(db, ct);
         await SeedPayrollAsync(db, ct);
         await SeedCandidatesAsync(db, ct);
         await SeedJobOpeningsAsync(db, ct);
+        await SeedHrModulesAsync(db, ct);
         await SeedEmployeeDocumentsAsync(db, ct);
         await SeedInvoicesAsync(db, ct);
         await SeedCrmAsync(db, ct);
+        await SeedServicesAsync(db, ct);
+        await SeedFinanceAsync(db, ct);
         await SeedAuditLogsAsync(db, ct);
         await SeedAppUsersAsync(db, ct);
         await SeedNotificationsAsync(db, ct);
@@ -438,6 +446,37 @@ public static class DataSeeder
         if (changed) await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Assigns every employee an explicit HR partner (the HR person responsible for them) so each HR user
+    /// is scoped to just their assigned "book" on the Employees directory and every HR screen. Non-HR
+    /// employees are spread round-robin across the HR department; HR-dept members roll up to the VP.
+    /// Idempotent: only fills in employees that don't yet have a partner.
+    /// </summary>
+    private static async Task AssignHrPartnersAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        var all = await db.Employees.IgnoreQueryFilters().OrderBy(e => e.Code).ToListAsync(ct);
+        var hrPeople = all
+            .Where(e => e.Department.Equals("Human Resources", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (hrPeople.Count == 0) return;
+
+        var vp = hrPeople.FirstOrDefault(e => e.Designation.Contains("VP", StringComparison.OrdinalIgnoreCase)) ?? hrPeople[0];
+        var altForVp = hrPeople.FirstOrDefault(e => e.Id != vp.Id) ?? vp;
+
+        var changed = false;
+        var i = 0;
+        foreach (var e in all)
+        {
+            if (e.HrPartnerId is not null) continue;   // already assigned — keep it (idempotent)
+            var partner = e.Department.Equals("Human Resources", StringComparison.OrdinalIgnoreCase)
+                ? (e.Id == vp.Id ? altForVp : vp)      // the HR team rolls up to the VP (VP → an alternate)
+                : hrPeople[i++ % hrPeople.Count];      // spread the rest of the company across the HR team
+            e.AssignHrPartner(partner.Id, partner.Name.Full, "seed");
+            changed = true;
+        }
+        if (changed) await db.SaveChangesAsync(ct);
+    }
+
     private sealed record MayaReport(
         string Name, string Email, string Title, int Band, decimal Ctc, byte Perf, string Phone, string[] Skills,
         (LeaveType Type, int Days, string Reason, DateOnly From, DateOnly To)? Leave,
@@ -603,7 +642,8 @@ public static class DataSeeder
     private static async Task SeedCandidatesAsync(YugmaDbContext db, CancellationToken ct)
     {
         var existing = await db.Candidates.IgnoreQueryFilters().ToListAsync(ct);
-        if (existing.Count >= 20) return;                 // already seeded with the rich pipeline
+        var enriched = existing.Any(c => c.Onboarding != null);    // has the workflow + post-hire onboarding data
+        if (existing.Count >= 20 && enriched) return;     // already seeded with the rich workflow pipeline
         if (existing.Count > 0) db.Candidates.RemoveRange(existing);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -646,6 +686,66 @@ public static class DataSeeder
                 DemoTenant, name, role, sources[rng.Next(sources.Length)], PickStage(),
                 (byte)rng.Next(3, 6), applied, email, locations[rng.Next(locations.Length)],
                 rng.Next(1, 14), 6 + rng.Next(0, 42), owners[rng.Next(owners.Length)], last));
+        }
+
+        // Enrich the pipeline with interviewers, feedback and a workflow trail so the
+        // "who interviewed / what was the verdict" story is visible end-to-end.
+        string[] interviewers = { "Devansh Patel", "Priya Sharma", "Ananya Rao", "Karthik Nair", "Aisha Khan", "Sneha Iyer", "Vikram Singh" };
+        string[] recs = { "Strong yes", "Proceed", "Proceed", "Hold", "Reject" };
+        string[] rounds = { "Technical", "Hiring manager", "HR", "Bar raiser" };
+        string[] comments =
+        {
+            "Strong fundamentals; communicated clearly and reasoned well through the system-design round.",
+            "Good problem solver, a little light on depth in places — worth a follow-up round.",
+            "Solid culture fit and ownership mindset. Recommend moving forward.",
+            "Borderline on senior-level scope; would re-evaluate after a take-home.",
+            "Did not meet the bar on core competencies for this role."
+        };
+        string Slug(string n) => n.ToLowerInvariant().Replace(' ', '-');
+
+        foreach (var c in list)
+        {
+            if (rng.NextDouble() < 0.85)
+                c.AttachResume($"{Slug(c.Name)}-resume.pdf", $"https://resumes.yugma.example/{Slug(c.Name)}.pdf", "seed");
+
+            var iv = interviewers[rng.Next(interviewers.Length)];
+            switch (c.Stage)
+            {
+                case CandidateStage.Screening:
+                    c.Activity.Add(new StageEvent { Kind = "note", Note = "Screening call done — relevant experience, salary expectations in range.", By = c.Owner, At = DateTime.UtcNow });
+                    break;
+                case CandidateStage.Interview:
+                    c.AssignInterviewer(iv, c.LastActivityAt.AddDays(2), c.Owner);
+                    break;
+                case CandidateStage.Offer:
+                case CandidateStage.Hired:
+                    c.AssignInterviewer(iv, c.LastActivityAt, c.Owner);
+                    for (var r = 0; r < rng.Next(1, 3); r++)
+                    {
+                        var pick = rng.Next(recs.Length - 1); // bias positive for offer/hired
+                        c.AddFeedback(interviewers[rng.Next(interviewers.Length)], rounds[r % rounds.Length], (byte)rng.Next(4, 6), recs[pick], comments[pick], iv);
+                    }
+                    break;
+                case CandidateStage.Rejected:
+                    c.AssignInterviewer(iv, c.LastActivityAt, c.Owner);
+                    c.AddFeedback(iv, "Technical", (byte)rng.Next(1, 3), "Reject", comments[4], iv);
+                    break;
+            }
+
+            // Post-hire onboarding: spread hired candidates across the process so every step is visible.
+            if (c.Stage == CandidateStage.Hired)
+            {
+                c.StartOnboarding(c.Owner);
+                var level = rng.Next(0, 4);              // 0 = documents, 1 = background, 2 = offer released, 3 = accepted
+                var docs = c.Onboarding!.Documents;
+                var verifyCount = level >= 1 ? docs.Count : rng.Next(1, docs.Count);
+                for (var i = 0; i < docs.Count; i++)
+                    c.SetDocument(docs[i].Name, i < verifyCount ? "verified" : "pending", null, c.Owner);
+                var joining = today.AddDays(rng.Next(15, 45));
+                if (level >= 1) c.UpdateBackgroundCheck("cleared", "HireRight India", "Employment, education and ID checks passed.", c.Owner);
+                if (level >= 2) c.ReleaseOfferLetter($"{Slug(c.Name)}-offer.pdf", $"https://offers.yugma.example/{Slug(c.Name)}.pdf", joining, (decimal)(8 + rng.Next(0, 40)), c.Owner);
+                if (level >= 3) c.RecordAcceptance("accepted", "Accepted — looking forward to joining the team!", joining, c.Owner);
+            }
         }
 
         db.Candidates.AddRange(list);
@@ -926,6 +1026,252 @@ public static class DataSeeder
     // Shared demo password for every seeded login (documented for testers).
     private const string DemoPassword = "Yugma@123";
 
+    private static async Task SeedServicesAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        if (await db.ServiceOrders.IgnoreQueryFilters().AnyAsync(ct)) return;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var nowUtc = DateTime.UtcNow;
+        var rng = new Random(20260607);
+
+        var team = new[] { "Sahil Verma", "Rohit Sharma", "Anjali Gupta" };
+        var customers = new[] { "Deco Addict", "Ready Mat", "Gemini Furniture", "Azure Interior", "The Jackson Group", "Lumber Inc", "YourCompany" };
+
+        // (Title, Type, Stage, Priority, estHours, tags, dueOffsetDays)
+        var defs = new (string Title, ServiceType Type, ServiceStage Stage, ServicePriority Priority, decimal Est, string[] Tags, int DueIn)[]
+        {
+            ("Office redesign — phase 2",            ServiceType.Project,      ServiceStage.InProgress, ServicePriority.High,   80, new[]{"Design","Internal"}, 21),
+            ("Website revamp delivery",              ServiceType.Project,      ServiceStage.Review,     ServicePriority.Medium, 60, new[]{"External"},          7),
+            ("ERP rollout — finance module",         ServiceType.Project,      ServiceStage.New,        ServicePriority.High,   120,new[]{"Implementation"},    45),
+            ("Showroom AC installation",             ServiceType.FieldService, ServiceStage.Scheduled,  ServicePriority.Medium, 6,  new[]{"On-site"},           3),
+            ("Conveyor belt breakdown repair",       ServiceType.FieldService, ServiceStage.InProgress, ServicePriority.Urgent, 8,  new[]{"On-site","Urgent"},  1),
+            ("Quarterly equipment maintenance",      ServiceType.FieldService, ServiceStage.New,        ServicePriority.Low,    4,  new[]{"Preventive"},        14),
+            ("Network outage at branch office",      ServiceType.Helpdesk,     ServiceStage.InProgress, ServicePriority.Urgent, 5,  new[]{"P1","Infra"},        1),
+            ("Login issues after password reset",    ServiceType.Helpdesk,     ServiceStage.New,        ServicePriority.Medium, 2,  new[]{"Access"},            2),
+            ("Printer driver not working",           ServiceType.Helpdesk,     ServiceStage.Review,     ServicePriority.Low,    1,  new[]{"Hardware"},          1),
+            ("Email delivery delays",                ServiceType.Helpdesk,     ServiceStage.Done,       ServicePriority.High,   3,  new[]{"Email"},            -2),
+            ("Onboarding consultation call",         ServiceType.Appointment,  ServiceStage.Scheduled,  ServicePriority.Medium, 1,  new[]{"Consult"},           2),
+            ("Annual contract review meeting",       ServiceType.Appointment,  ServiceStage.New,        ServicePriority.Low,    1,  new[]{"Account"},           10),
+            ("Site survey for new fit-out",          ServiceType.Appointment,  ServiceStage.Done,       ServicePriority.Medium, 2,  new[]{"Survey"},           -5),
+            ("Kitchen remodel project",              ServiceType.Project,      ServiceStage.Scheduled,  ServicePriority.Medium, 50, new[]{"External"},          18),
+            ("Generator servicing — HQ",             ServiceType.FieldService, ServiceStage.Review,     ServicePriority.Medium, 5,  new[]{"On-site"},           2),
+            ("VPN access request",                   ServiceType.Helpdesk,     ServiceStage.Done,       ServicePriority.Low,    1,  new[]{"Access"},           -1)
+        };
+
+        var n = 1000;
+        var orders = new List<ServiceOrder>();
+        foreach (var d in defs)
+        {
+            n++;
+            var assignee = d.Stage == ServiceStage.New ? null : team[rng.Next(team.Length)];
+            DateTime? scheduled = d.Stage is ServiceStage.Scheduled or ServiceStage.InProgress or ServiceStage.Review
+                ? nowUtc.Date.AddDays(rng.Next(-4, 6)).AddHours(9 + rng.Next(0, 8))
+                : (d.Stage == ServiceStage.Done ? nowUtc.Date.AddDays(-rng.Next(2, 10)) : null);
+            var due = today.AddDays(d.DueIn);
+
+            var o = ServiceOrder.Create(DemoTenant, $"SVC-{n}", d.Title, d.Type, customers[rng.Next(customers.Length)],
+                d.Stage, d.Priority, assignee, scheduled, due, d.Est, null, d.Tags, "seed");
+            orders.Add(o);
+        }
+        db.ServiceOrders.AddRange(orders);
+
+        // Time entries on the orders that are in flight or finished.
+        var notes = new[] { "On-site diagnosis", "Implementation work", "Customer call", "Testing & sign-off", "Parts replacement", "Remote troubleshooting" };
+        foreach (var o in orders)
+        {
+            if (o.Stage is ServiceStage.New or ServiceStage.Cancelled || o.AssignedTo is null) continue;
+            var sessions = o.Stage == ServiceStage.Done ? rng.Next(2, 5) : rng.Next(1, 4);
+            for (var i = 0; i < sessions; i++)
+            {
+                var date = today.AddDays(-rng.Next(0, 9));
+                var hours = Math.Round((decimal)(1 + rng.NextDouble() * 4), 1);
+                db.ServiceTimesheets.Add(ServiceTimesheet.Create(DemoTenant, o.Id, o.AssignedTo!, date, hours, notes[rng.Next(notes.Length)], "seed"));
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task SeedHrModulesAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var rng = new Random(20260609);
+
+        // ---- Employee referrals ----
+        if (!await db.EmployeeReferrals.IgnoreQueryFilters().AnyAsync(ct))
+        {
+            var referrers = new[] { "Devansh Patel", "Priya Sharma", "Ananya Rao", "Aisha Khan", "Karthik Nair", "Sneha Iyer" };
+            var candidates = new[] { "Aryan Khanna", "Diya Kapoor", "Vihaan Reddy", "Ira Nair", "Kabir Anand", "Mira Joshi", "Reyansh Shah", "Anaya Pillai", "Vivaan Rao", "Sara Mehta" };
+            var positions = new[] { "Senior Engineer", "Product Designer", "Account Executive", "Finance Analyst", "Data Analyst", "Marketing Manager" };
+            var depts = new[] { "Engineering", "Design", "Sales", "Finance", "Product", "Marketing" };
+            (ReferralStatus Status, bool Paid)[] plan =
+            {
+                (ReferralStatus.New, false), (ReferralStatus.New, false), (ReferralStatus.InReview, false),
+                (ReferralStatus.Interviewing, false), (ReferralStatus.Interviewing, false),
+                (ReferralStatus.Hired, true), (ReferralStatus.Hired, false), (ReferralStatus.Hired, false),
+                (ReferralStatus.NotSelected, false), (ReferralStatus.NotSelected, false)
+            };
+            for (var i = 0; i < plan.Length; i++)
+            {
+                var slug = candidates[i].ToLowerInvariant().Replace(' ', '.');
+                var r = EmployeeReferral.Create(DemoTenant, referrers[rng.Next(referrers.Length)], candidates[i], positions[rng.Next(positions.Length)],
+                    $"{slug}@example.com", depts[rng.Next(depts.Length)], plan[i].Status, today.AddDays(-rng.Next(3, 70)),
+                    rng.Next(0, 2) == 0 ? 50000m : 75000m, null, "seed");
+                if (plan[i].Paid) r.MarkBonusPaid("seed");
+                db.EmployeeReferrals.Add(r);
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
+        // ---- Fleet vehicles ----
+        if (!await db.Vehicles.IgnoreQueryFilters().AnyAsync(ct))
+        {
+            (string Name, string Plate, VehicleType Type, VehicleStatus Status, string? Driver, string Fuel, int Odo, int ServiceIn)[] fleet =
+            {
+                ("Toyota Innova Crysta", "KA01AB1234", VehicleType.Car, VehicleStatus.InUse, "Devansh Patel", "Diesel", 48200, 12),
+                ("Maruti Ertiga", "KA05CD5678", VehicleType.Car, VehicleStatus.Available, null, "Petrol", 21500, 40),
+                ("Tata Ace", "KA03EF9012", VehicleType.Truck, VehicleStatus.InUse, "Rohit Sharma", "Diesel", 95400, -3),
+                ("Mahindra Bolero", "KA02GH3456", VehicleType.Van, VehicleStatus.Maintenance, null, "Diesel", 132000, 5),
+                ("Royal Enfield Classic", "KA09IJ7890", VehicleType.Bike, VehicleStatus.Available, null, "Petrol", 8800, 60),
+                ("Force Traveller", "KA04KL2345", VehicleType.Bus, VehicleStatus.InUse, "Anjali Gupta", "Diesel", 67300, 22),
+                ("Hyundai Aura", "KA07MN6789", VehicleType.Car, VehicleStatus.Retired, null, "CNG", 158900, 0)
+            };
+            foreach (var f in fleet)
+            {
+                db.Vehicles.Add(Vehicle.Create(DemoTenant, f.Name, f.Plate, f.Type, today.AddDays(-rng.Next(200, 1500)),
+                    f.Status, f.Driver, f.Fuel, f.Odo, f.Status == VehicleStatus.Retired ? null : today.AddDays(f.ServiceIn), null, "seed"));
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
+        // A few approved unpaid (LOP) leaves in the current month so payroll LOP is demonstrable.
+        var hasLop = await db.LeaveRequests.IgnoreQueryFilters()
+            .AnyAsync(r => r.Type == Domain.Hr.Leave.LeaveType.Unpaid && r.Status == Domain.Hr.Leave.LeaveStatus.Approved
+                && r.FromDate.Year == today.Year && r.FromDate.Month == today.Month, ct);
+        if (!hasLop)
+        {
+            var dim = DateTime.DaysInMonth(today.Year, today.Month);
+            (string Emp, int FromDay, int Days)[] lop = { ("Aaron Associate", 5, 2), ("Ananya Rao", 12, 3), ("Karthik Nair", 20, 1) };
+            foreach (var f in lop)
+            {
+                var from = new DateOnly(today.Year, today.Month, Math.Min(f.FromDay, dim));
+                var to = from.AddDays(Math.Min(f.Days - 1, dim - from.Day));
+                db.LeaveRequests.Add(Domain.Hr.Leave.LeaveRequest.Create(DemoTenant, f.Emp, Domain.Hr.Leave.LeaveType.Unpaid,
+                    from, to, to.DayNumber - from.DayNumber + 1, Domain.Hr.Leave.LeaveStatus.Approved, "Unpaid leave",
+                    today.AddDays(-6), "HR", DateTime.UtcNow.AddDays(-5), "HR"));
+            }
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private static async Task SeedFinanceAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        if (await db.FinanceDocuments.IgnoreQueryFilters().AnyAsync(ct)) return;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var rng = new Random(20260608);
+
+        var customers = new[] { "Deco Addict", "Ready Mat", "Gemini Furniture", "Azure Interior", "The Jackson Group", "Lumber Inc" };
+        var vendors = new[] { "Office Supplies Co", "Cloud Hosting Ltd", "Logistics Partners", "Print Works", "Power & Utilities", "Staffing Solutions" };
+
+        var docs = new List<FinanceDocument>();
+        var invNo = 1000; var billNo = 1000;
+
+        // Customer invoices — a realistic spread of draft / paid / open / overdue.
+        (FinanceDocStatus Status, int IssueAgo, int DueIn)[] invPlan =
+        {
+            (FinanceDocStatus.Draft, 2, 28), (FinanceDocStatus.Draft, 1, 29),
+            (FinanceDocStatus.Posted, 40, -10), (FinanceDocStatus.Posted, 55, -25), (FinanceDocStatus.Posted, 35, -5),  // overdue
+            (FinanceDocStatus.Posted, 8, 22), (FinanceDocStatus.Posted, 15, 15), (FinanceDocStatus.Posted, 20, 40),     // open, not due
+            (FinanceDocStatus.Paid, 60, -30), (FinanceDocStatus.Paid, 45, -15), (FinanceDocStatus.Paid, 25, 5)
+        };
+        foreach (var p in invPlan)
+        {
+            invNo++;
+            var amount = Math.Round((decimal)(20000 + rng.Next(0, 260000)), 0);
+            var issue = today.AddDays(-p.IssueAgo);
+            docs.Add(FinanceDocument.Create(DemoTenant, $"INV-{invNo}", FinanceDocKind.CustomerInvoice,
+                customers[rng.Next(customers.Length)], issue, issue.AddDays(p.DueIn + p.IssueAgo),
+                amount, Math.Round(amount * 0.18m, 0), p.Status, 0, $"SO-{rng.Next(70, 99)}", null, "seed"));
+        }
+
+        // Vendor bills.
+        (FinanceDocStatus Status, int IssueAgo, int DueIn)[] billPlan =
+        {
+            (FinanceDocStatus.Draft, 1, 30),
+            (FinanceDocStatus.Posted, 30, -4), (FinanceDocStatus.Posted, 12, 18), (FinanceDocStatus.Posted, 20, 10),
+            (FinanceDocStatus.Posted, 5, 25), (FinanceDocStatus.Paid, 40, -10), (FinanceDocStatus.Paid, 22, 8)
+        };
+        foreach (var p in billPlan)
+        {
+            billNo++;
+            var amount = Math.Round((decimal)(8000 + rng.Next(0, 90000)), 0);
+            var issue = today.AddDays(-p.IssueAgo);
+            docs.Add(FinanceDocument.Create(DemoTenant, $"BILL-{billNo}", FinanceDocKind.VendorBill,
+                vendors[rng.Next(vendors.Length)], issue, issue.AddDays(p.DueIn + p.IssueAgo),
+                amount, Math.Round(amount * 0.18m, 0), p.Status, 0, null, null, "seed"));
+        }
+        db.FinanceDocuments.AddRange(docs);
+
+        // Bank + cash accounts with statement lines.
+        var bank = BankAccount.Create(DemoTenant, "HDFC Current A/C", BankAccountKind.Bank, 850000m, "INR", "seed");
+        var cash = BankAccount.Create(DemoTenant, "Petty Cash", BankAccountKind.Cash, 25000m, "INR", "seed");
+        db.BankAccounts.AddRange(bank, cash);
+
+        var labels = new[] { "Customer payment", "Vendor payment", "Bank charges", "Salary transfer", "Refund", "Office rent", "Interest credit" };
+        for (var i = 0; i < 16; i++)
+        {
+            var date = today.AddDays(-rng.Next(0, 40));
+            var inflow = rng.NextDouble() < 0.5;
+            var amount = Math.Round((decimal)(inflow ? 20000 + rng.Next(0, 180000) : -(8000 + rng.Next(0, 90000))), 0);
+            var cat = i % 3 == 0 ? "payment" : (i % 3 == 1 ? "misc" : "transfer");
+            db.BankTransactions.Add(BankTransaction.Create(DemoTenant, bank.Id, date, labels[rng.Next(labels.Length)], amount, cat, rng.NextDouble() < 0.5, "seed"));
+        }
+        for (var i = 0; i < 6; i++)
+        {
+            var date = today.AddDays(-rng.Next(0, 25));
+            var amount = Math.Round((decimal)(rng.NextDouble() < 0.5 ? 2000 + rng.Next(0, 12000) : -(1000 + rng.Next(0, 8000))), 0);
+            db.BankTransactions.Add(BankTransaction.Create(DemoTenant, cash.Id, date, i % 2 == 0 ? "Cash receipt" : "Cash expense", amount, "misc", rng.NextDouble() < 0.6, "seed"));
+        }
+
+        // Expenses across the approval flow.
+        var employees = new[] { "Devansh Patel", "Priya Sharma", "Ananya Rao", "Karthik Nair", "Rahul Mehta" };
+        var categories = new[] { "Travel", "Meals", "Accommodation", "Software", "Office supplies", "Client entertainment" };
+        (ExpenseStatus Status, int DaysAgo)[] expPlan =
+        {
+            (ExpenseStatus.Submitted, 2), (ExpenseStatus.Submitted, 4), (ExpenseStatus.Submitted, 1),
+            (ExpenseStatus.Approved, 8), (ExpenseStatus.Approved, 12),
+            (ExpenseStatus.Reimbursed, 25), (ExpenseStatus.Reimbursed, 30),
+            (ExpenseStatus.Draft, 0), (ExpenseStatus.Refused, 15)
+        };
+        var expNo = 1000;
+        foreach (var p in expPlan)
+        {
+            expNo++;
+            var cat = categories[rng.Next(categories.Length)];
+            db.Expenses.Add(Expense.Create(DemoTenant, $"EXP-{expNo}", employees[rng.Next(employees.Length)], cat,
+                $"{cat} expense", today.AddDays(-p.DaysAgo), Math.Round((decimal)(800 + rng.Next(0, 24000)), 0), p.Status, "seed"));
+        }
+
+        // Documents + a few awaiting signature.
+        (string Name, string Category, SignatureStatus Sig, string? Signer)[] files =
+        {
+            ("Master Services Agreement — Deco Addict.pdf", "Contract", SignatureStatus.Pending, "Deco Addict"),
+            ("NDA — Gemini Furniture.pdf", "Contract", SignatureStatus.Pending, "Gemini Furniture"),
+            ("Vendor Agreement — Cloud Hosting Ltd.pdf", "Contract", SignatureStatus.Signed, "Cloud Hosting Ltd"),
+            ("GST Filing — Q1.pdf", "Tax", SignatureStatus.None, null),
+            ("Bank Statement — March.pdf", "Statement", SignatureStatus.None, null),
+            ("Annual Audit Report.pdf", "Report", SignatureStatus.None, null),
+            ("Invoice INV-1004.pdf", "Invoice", SignatureStatus.None, null),
+            ("Lease Renewal — HQ.pdf", "Contract", SignatureStatus.Pending, "Azure Interior")
+        };
+        foreach (var f in files)
+            db.FinanceFiles.Add(FinanceFile.Create(DemoTenant, f.Name, f.Category, "Nisha Agarwal", f.Sig, f.Signer,
+                f.Sig == SignatureStatus.Signed ? DateTime.UtcNow.AddDays(-5) : null, "seed"));
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static async Task SeedAppUsersAsync(YugmaDbContext db, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
@@ -983,7 +1329,14 @@ public static class DataSeeder
             ("Sameer Rao",        "hr.srmgr@yugma.io",   "Manager", "Senior HR Manager",      "Human Resources"),
             ("Leena Pillai",      "hr.mgr@yugma.io",     "Manager", "HR Manager",             "Human Resources"),
             ("Ishan Mehta",       "hr.assoc1@yugma.io",  "Member",  "HR Associate",           "Human Resources"),
-            ("Tara Singh",        "hr.assoc2@yugma.io",  "Member",  "HR Associate",           "Human Resources")
+            ("Tara Singh",        "hr.assoc2@yugma.io",  "Member",  "HR Associate",           "Human Resources"),
+            // Services department logins — these carry the "services" role (department-based access to the Services module).
+            ("Sahil Verma",       "service.manager@yugma.io", "Manager", "Services Delivery Manager", "Services"),
+            ("Rohit Sharma",      "service.tech@yugma.io",    "Member",  "Field Service Technician", "Services"),
+            ("Anjali Gupta",      "service.agent@yugma.io",   "Member",  "Helpdesk Agent",           "Services"),
+            // Finance department logins — these carry the "finance" role (department-based access to the Finance module).
+            ("Nisha Agarwal",     "finance.manager@yugma.io",    "Manager", "Finance Controller", "Finance"),
+            ("Rahul Mehta",       "finance.accountant@yugma.io", "Member",  "Senior Accountant",  "Finance")
         };
         foreach (var p in personas)
         {

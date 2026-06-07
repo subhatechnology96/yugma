@@ -59,6 +59,15 @@ builder.Services.AddAuthorization(options =>
     // HrManage: who may change people/hierarchy/teams.  UserManage: who may administer user accounts.
     options.AddPolicy("HrManage", p => p.RequireRole("admin", "owner", "manager", "hr", "super_admin"));
     options.AddPolicy("UserManage", p => p.RequireRole("admin", "owner", "hr", "super_admin"));
+
+    // Services module — dedicated access: the "services" role (granted to Services-department users in AuthController),
+    // plus admins/owners. A generic manager from another department does not get in.
+    options.AddPolicy("ServicesView", p => p.RequireRole("admin", "owner", "services", "super_admin"));
+    options.AddPolicy("ServicesEdit", p => p.RequireRole("admin", "owner", "services", "super_admin"));
+
+    // Finance module — dedicated access: the "finance" role (granted to Finance-department users), plus admins/owners.
+    options.AddPolicy("FinanceView", p => p.RequireRole("admin", "owner", "finance", "super_admin"));
+    options.AddPolicy("FinanceEdit", p => p.RequireRole("admin", "owner", "finance", "super_admin"));
 });
 
 builder.Services.AddControllers();

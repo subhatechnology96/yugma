@@ -36,8 +36,11 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<PerformanceReview> PerformanceReviews => Set<PerformanceReview>();
     public DbSet<ReportingAssignment> ReportingAssignments => Set<ReportingAssignment>();
     public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+    public DbSet<Payslip> Payslips => Set<Payslip>();
     public DbSet<Candidate> Candidates => Set<Candidate>();
     public DbSet<JobOpening> JobOpenings => Set<JobOpening>();
+    public DbSet<Yugma.Crm.Domain.Hr.Referrals.EmployeeReferral> EmployeeReferrals => Set<Yugma.Crm.Domain.Hr.Referrals.EmployeeReferral>();
+    public DbSet<Yugma.Crm.Domain.Hr.Fleet.Vehicle> Vehicles => Set<Yugma.Crm.Domain.Hr.Fleet.Vehicle>();
     public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
     public DbSet<EmployeeProject> EmployeeProjects => Set<EmployeeProject>();
     public DbSet<EmployeeProfile> EmployeeProfiles => Set<EmployeeProfile>();
@@ -52,6 +55,17 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<DealStage> DealStages => Set<DealStage>();
     public DbSet<Activity> Activities => Set<Activity>();
     public DbSet<Note> Notes => Set<Note>();
+
+    // Services module
+    public DbSet<Yugma.Crm.Domain.Services.ServiceOrder> ServiceOrders => Set<Yugma.Crm.Domain.Services.ServiceOrder>();
+    public DbSet<Yugma.Crm.Domain.Services.ServiceTimesheet> ServiceTimesheets => Set<Yugma.Crm.Domain.Services.ServiceTimesheet>();
+
+    // Finance module
+    public DbSet<Yugma.Crm.Domain.Finance.FinanceDocument> FinanceDocuments => Set<Yugma.Crm.Domain.Finance.FinanceDocument>();
+    public DbSet<Yugma.Crm.Domain.Finance.Expense> Expenses => Set<Yugma.Crm.Domain.Finance.Expense>();
+    public DbSet<Yugma.Crm.Domain.Finance.BankAccount> BankAccounts => Set<Yugma.Crm.Domain.Finance.BankAccount>();
+    public DbSet<Yugma.Crm.Domain.Finance.BankTransaction> BankTransactions => Set<Yugma.Crm.Domain.Finance.BankTransaction>();
+    public DbSet<Yugma.Crm.Domain.Finance.FinanceFile> FinanceFiles => Set<Yugma.Crm.Domain.Finance.FinanceFile>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();

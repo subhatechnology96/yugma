@@ -32,6 +32,7 @@
         <div class="flex justify-between"><dt class="text-surface-500">Phone</dt><dd class="font-medium">{{ emp.phone }}</dd></div>
         <div class="flex justify-between"><dt class="text-surface-500">Location</dt><dd class="font-medium">{{ emp.location }}</dd></div>
         <div class="flex justify-between"><dt class="text-surface-500">Manager</dt><dd class="font-medium">{{ emp.manager ?? '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-surface-500">HR partner</dt><dd class="font-medium">{{ emp.hrPartner ?? '—' }}</dd></div>
         <div class="flex justify-between"><dt class="text-surface-500">Joined</dt><dd class="font-medium">{{ emp.joinedAt | date: 'mediumDate' }}</dd></div>
         <div class="flex justify-between"><dt class="text-surface-500">Employment</dt><dd class="font-medium">{{ emp.employmentType }}</dd></div>
         <div class="flex justify-between"><dt class="text-surface-500">CTC</dt><dd class="font-medium">₹{{ emp.ctcLakhs | number: '1.1-1' }} L</dd></div>
@@ -44,6 +45,32 @@
           }
         </div>
       </div>
+
+      @if (canEdit()) {
+        <div class="mt-6 border-t border-surface-200 dark:border-surface-800 pt-4">
+          <div class="section-title mb-2">Assign HR partner</div>
+          <p-select
+            [options]="hrPartnerOptions()"
+            [(ngModel)]="hrPartnerDraft"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Unassigned"
+            [showClear]="true"
+            [filter]="true"
+            styleClass="w-full"
+            appendTo="body" />
+          <button
+            pButton
+            size="small"
+            class="mt-2 w-full"
+            icon="pi pi-check"
+            label="Save HR partner"
+            [loading]="savingPartner()"
+            [disabled]="savingPartner() || hrPartnerDraft === (emp.hrPartnerId ?? null)"
+            (click)="saveHrPartner()"></button>
+          <p class="mt-2 text-xs text-surface-400">The HR partner sees this employee in their directory and HR screens.</p>
+        </div>
+      }
     </div>
 
     <!-- Tabs -->

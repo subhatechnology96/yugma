@@ -32,7 +32,7 @@ public sealed class HrAccess(IHttpContextAccessor accessor, YugmaDbContext db)
         var isAdmin = roles.Overlaps(new[] { "admin", "owner", "super_admin" });
 
         var all = await db.Employees.AsNoTracking()
-            .Select(e => new EmpNode(e.Id, e.ManagerId, e.Name.First + " " + e.Name.Last, e.Department, e.Email.Value))
+            .Select(e => new EmpNode(e.Id, e.ManagerId, e.HrPartnerId, e.Name.First + " " + e.Name.Last, e.Department, e.Email.Value))
             .ToListAsync(ct);
 
         var self = !string.IsNullOrWhiteSpace(email) ? all.FirstOrDefault(e => string.Equals(e.Email, email, StringComparison.OrdinalIgnoreCase)) : null;
@@ -45,21 +45,40 @@ public sealed class HrAccess(IHttpContextAccessor accessor, YugmaDbContext db)
         var managedIds = self is null ? new HashSet<Guid>() : Descendants(self.Id, all);
         var managedNames = all.Where(e => managedIds.Contains(e.Id)).Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        IReadOnlySet<Guid>? visibleIds = null;        // null = everyone (manage)
-        IReadOnlySet<string>? visibleNames = null;
-        if (!canManage)
+        // Read scope (what they may SEE) and manage scope (what they may EDIT/APPROVE). null = everyone.
+        IReadOnlySet<Guid>? visibleIds;
+        IReadOnlySet<Guid>? manageableIds;
+        if (isAdmin)
         {
-            var ids = new HashSet<Guid>(managedIds);
-            if (self is not null) ids.Add(self.Id);     // team = self + reports (Self tier = just self)
-            visibleIds = ids;
-            visibleNames = all.Where(e => ids.Contains(e.Id)).Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            visibleIds = null;            // admins/owners: the whole company
+            manageableIds = null;
         }
+        else if (isHr)
+        {
+            // HR partner's "book": the employees explicitly assigned to this HR person (+ their own row).
+            var book = all.Where(e => e.HrPartnerId == self!.Id).Select(e => e.Id).ToHashSet();
+            manageableIds = book;
+            visibleIds = new HashSet<Guid>(book) { self!.Id };
+        }
+        else
+        {
+            // Team lead → self + reports (manage reports); plain employee → just self (manage nobody).
+            var vis = new HashSet<Guid>(managedIds);
+            if (self is not null) vis.Add(self.Id);
+            visibleIds = vis;
+            manageableIds = managedIds;
+        }
+
+        IReadOnlySet<string>? NamesOf(IReadOnlySet<Guid>? ids) =>
+            ids is null ? null : all.Where(e => ids.Contains(e.Id)).Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var visibleNames = NamesOf(visibleIds);
+        var manageableNames = NamesOf(manageableIds);
 
         var scope = canManage ? "all" : (managedIds.Count > 0 ? "team" : "self");
 
         return _cached = new HrAccessResult(
             email, canManage, isHr, selfEmployee, scope,
-            visibleIds, visibleNames, managedIds, managedNames);
+            visibleIds, visibleNames, manageableIds, manageableNames, managedIds, managedNames);
     }
 
     /// <summary>All employee ids that report — directly or transitively — to the given employee.</summary>
@@ -80,7 +99,7 @@ public sealed class HrAccess(IHttpContextAccessor accessor, YugmaDbContext db)
         return result;
     }
 
-    private sealed record EmpNode(Guid Id, Guid? ManagerId, string Name, string Department, string Email);
+    private sealed record EmpNode(Guid Id, Guid? ManagerId, Guid? HrPartnerId, string Name, string Department, string Email);
 }
 
 /// <summary>Outcome of <see cref="HrAccess.ResolveAsync"/>.</summary>
@@ -90,8 +109,10 @@ public sealed record HrAccessResult(
     bool IsHr,
     Employee? Self,
     string Scope,                                  // "all" | "team" | "self"
-    IReadOnlySet<Guid>? VisibleIds,                // null = all; otherwise self + reports
+    IReadOnlySet<Guid>? VisibleIds,                // null = all; HR = their book + self; lead = self + reports
     IReadOnlySet<string>? VisibleNames,            // by employee full name (for name-keyed tables)
+    IReadOnlySet<Guid>? ManageableIds,             // null = all (admin); HR = their book; lead = reports; else empty
+    IReadOnlySet<string>? ManageableNames,         // manageable set by employee full name
     IReadOnlySet<Guid> ManagedIds,                 // reports only (excludes self)
     IReadOnlySet<string> ManagedNames)
 {
@@ -101,10 +122,10 @@ public sealed record HrAccessResult(
     public string? SelfName => Self?.Name.Full;
     public string? SelfEmail => Self?.Email.Value ?? Email;
 
-    /// <summary>True if the user may READ this employee's data (everyone for managers; team for leads; self otherwise).</summary>
+    /// <summary>True if the user may READ this employee's data (everyone for admins; their book for HR; team for leads; self otherwise).</summary>
     public bool CanSeeEmployee(Guid employeeId) => VisibleIds is null || VisibleIds.Contains(employeeId);
 
-    /// <summary>True if the user may MANAGE this employee's data (HR/admin anyone; team leads their reports).</summary>
-    public bool CanManageEmployee(Guid employeeId) => CanManage || ManagedIds.Contains(employeeId);
-    public bool CanManageEmployee(string employeeName) => CanManage || ManagedNames.Contains(employeeName);
+    /// <summary>True if the user may MANAGE this employee's data (admins anyone; HR their book; team leads their reports).</summary>
+    public bool CanManageEmployee(Guid employeeId) => ManageableIds is null || ManageableIds.Contains(employeeId);
+    public bool CanManageEmployee(string employeeName) => ManageableNames is null || ManageableNames.Contains(employeeName);
 }

@@ -195,10 +195,11 @@ public sealed class AttendanceController(YugmaDbContext db, HrAccess access) : C
 
         if (string.Equals(scope, "team", StringComparison.OrdinalIgnoreCase))
         {
-            if (!acc.CanManage)
+            // The requests the caller can approve: admins → everyone (null); HR → their book; team leads → their reports.
+            if (acc.ManageableIds is { } manage)
             {
-                if (acc.ManagedIds.Count == 0) return Ok(Array.Empty<AttendanceCorrectionDto>());
-                var ids = acc.ManagedIds.ToArray();
+                if (manage.Count == 0) return Ok(Array.Empty<AttendanceCorrectionDto>());
+                var ids = manage.ToArray();
                 q = q.Where(c => ids.Contains(c.EmployeeId));
             }
         }

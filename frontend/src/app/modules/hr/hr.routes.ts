@@ -45,11 +45,41 @@ export const HR_ROUTES: Routes = [
     data: { breadcrumb: 'Payroll' }
   },
   {
+    path: 'payroll-runs',
+    canActivate: [accessGuard('hrManage')],
+    loadComponent: () => import('./payroll/payroll-runs.component').then((m) => m.PayrollRunsComponent),
+    data: { breadcrumb: 'Payroll' }
+  },
+  {
     path: 'recruitment',
     canActivate: [accessGuard('hrManage')],
     loadComponent: () =>
       import('./recruitment/recruitment.component').then((m) => m.RecruitmentComponent),
     data: { breadcrumb: 'Recruitment' }
+  },
+  {
+    path: 'time-off',
+    canActivate: [accessGuard('hrManage')],
+    loadComponent: () => import('./timeoff/time-off.component').then((m) => m.TimeOffComponent),
+    data: { breadcrumb: 'Time Off' }
+  },
+  {
+    path: 'appraisals',
+    canActivate: [accessGuard('hrManage')],
+    loadComponent: () => import('./appraisals/appraisals.component').then((m) => m.AppraisalsComponent),
+    data: { breadcrumb: 'Appraisals' }
+  },
+  {
+    path: 'referrals',
+    canActivate: [accessGuard('hrManage')],
+    loadComponent: () => import('./referrals/referrals.component').then((m) => m.ReferralsComponent),
+    data: { breadcrumb: 'Referrals' }
+  },
+  {
+    path: 'fleet',
+    canActivate: [accessGuard('hrManage')],
+    loadComponent: () => import('./fleet/fleet.component').then((m) => m.FleetComponent),
+    data: { breadcrumb: 'Fleet' }
   },
   {
     path: 'performance',

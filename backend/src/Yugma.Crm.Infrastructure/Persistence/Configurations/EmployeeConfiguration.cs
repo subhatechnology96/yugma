@@ -38,8 +38,11 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         b.Property(e => e.Location).HasMaxLength(100).IsRequired();
         b.Property(e => e.Manager).HasMaxLength(200);
         b.Property(e => e.ManagerId).HasColumnName("manager_id");
+        b.Property(e => e.HrPartner).HasMaxLength(200);
+        b.Property(e => e.HrPartnerId).HasColumnName("hr_partner_id");
         b.Property(e => e.Band).HasColumnName("band");
         b.HasIndex(e => new { e.TenantId, e.ManagerId });
+        b.HasIndex(e => new { e.TenantId, e.HrPartnerId });
         b.Property(e => e.EmploymentType).HasConversion<string>().HasMaxLength(20);
         b.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
         b.Property(e => e.JoinedAt).IsRequired();

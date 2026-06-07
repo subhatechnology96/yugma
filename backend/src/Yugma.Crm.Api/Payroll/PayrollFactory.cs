@@ -92,6 +92,30 @@ public static class PayrollFactory
         return new PayrollYearDto(year, totals, months);
     }
 
+    // ---------------- editable payroll run: base salary components ----------------
+
+    /// <summary>The fixed monthly earnings + statutory deductions for an employee, used to seed an editable payslip.</summary>
+    public sealed record BaseSlip(decimal Basic, decimal Hra, decimal Special, decimal Conveyance, decimal Pf, decimal Esi, decimal Pt, decimal Tds);
+
+    public static BaseSlip BaseComponents(decimal ctcLakhs, PayrollRules cfg)
+    {
+        var annual = ctcLakhs * 100_000m;
+        var grossMonthly = annual / 12m;
+        var basic = Round(grossMonthly * cfg.BasicPctOfGross);
+        var hra = Round(basic * cfg.HraPctOfBasic);
+        var special = Round(grossMonthly - basic - hra - cfg.Conveyance);
+        if (special < 0) special = 0;
+        var gross = basic + hra + special + cfg.Conveyance;
+        var pf = Round(basic * cfg.PfPctOfBasic);
+        var esi = gross <= cfg.EsiGrossThreshold ? Round(gross * cfg.EsiEmployeePct) : 0m;
+        var pt = cfg.ProfessionalTax;
+        var tds = Round(ComputeAnnualTax(annual, cfg) / 12m);
+        return new BaseSlip(basic, hra, special, cfg.Conveyance, pf, esi, pt, tds);
+    }
+
+    /// <summary>Projected annual income tax (before cess) for a gross annual salary, under the configured slabs.</summary>
+    public static decimal AnnualTax(decimal annualGross, PayrollRules cfg) => ComputeAnnualTax(annualGross, cfg);
+
     // ---------------- per-employee slip (single source of truth) ----------------
     private static Slip Compute(Employee e, int year, int month, PayrollRules cfg)
     {

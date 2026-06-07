@@ -5,8 +5,10 @@
  * - 'teamLead'   → HR/admins, or a team lead (has reports)
  * - 'hrManage'   → HR-department members or admins/owners (the "HR Work" area)
  * - 'admin'      → admin / owner / super_admin roles
+ * - 'services'   → Services-department members (the "services" role) or admins/owners
+ * - 'finance'    → Finance-department members (the "finance" role) or admins/owners
  */
-export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin';
+export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin' | 'services' | 'finance';
 
 export interface NavItem {
   label: string;
@@ -41,14 +43,20 @@ export const NAV_ITEMS: NavItem[] = [
     ]
   },
   {
-    // HR-department functions — visible to HR staff and admins/owners (hrManage).
-    group: 'Operations',
-    label: 'HR Work',
+    // Human Resources — visible to HR staff and admins/owners (hrManage).
+    group: 'Human Resources',
+    label: 'Human Resources',
     icon: 'pi-briefcase',
     requires: 'hrManage',
     children: [
       { label: 'Employees', icon: 'pi-id-card', route: '/my-work/employees', exact: true },
       { label: 'Recruitment', icon: 'pi-user-plus', route: '/my-work/recruitment' },
+      { label: 'Time Off', icon: 'pi-calendar-times', route: '/my-work/time-off' },
+      { label: 'Attendances', icon: 'pi-clock', route: '/my-work/attendance' },
+      { label: 'Appraisals', icon: 'pi-star', route: '/my-work/appraisals' },
+      { label: 'Payroll', icon: 'pi-money-bill', route: '/my-work/payroll-runs' },
+      { label: 'Referrals', icon: 'pi-share-alt', route: '/my-work/referrals' },
+      { label: 'Fleet', icon: 'pi-car', route: '/my-work/fleet' },
       { label: 'AI Agents Hub', icon: 'pi-sparkles', route: '/my-work/agents', badge: 'GPT-5', badgeTone: 'info' },
       { label: 'HR Analytics', icon: 'pi-chart-pie', route: '/my-work/analytics' }
     ]
@@ -79,6 +87,38 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Activities', icon: 'pi-calendar', route: '/crm/activities' },
       { label: 'Quotes', icon: 'pi-file-edit', route: '/crm/quotes' },
       { label: 'CRM Analytics', icon: 'pi-chart-pie', route: '/crm/analytics' }
+    ]
+  },
+  {
+    // Services delivery — Services-department staff and admins/owners (the "services" role).
+    group: 'Services',
+    label: 'Services',
+    icon: 'pi-wrench',
+    requires: 'services',
+    children: [
+      { label: 'Dashboard', icon: 'pi-th-large', route: '/services/dashboard' },
+      { label: 'Pipeline', icon: 'pi-sitemap', route: '/services/pipeline', exact: true },
+      { label: 'Project', icon: 'pi-folder', route: '/services/project' },
+      { label: 'Field Service', icon: 'pi-truck', route: '/services/field-service' },
+      { label: 'Helpdesk', icon: 'pi-comments', route: '/services/helpdesk' },
+      { label: 'Appointments', icon: 'pi-calendar-plus', route: '/services/appointments' },
+      { label: 'Timesheets', icon: 'pi-clock', route: '/services/timesheets' },
+      { label: 'Planning', icon: 'pi-calendar', route: '/services/planning' }
+    ]
+  },
+  {
+    // Finance — Finance-department staff and admins/owners (the "finance" role).
+    group: 'Finance',
+    label: 'Finance',
+    icon: 'pi-wallet',
+    requires: 'finance',
+    children: [
+      { label: 'Accounting', icon: 'pi-th-large', route: '/finance/accounting' },
+      { label: 'Invoicing', icon: 'pi-file', route: '/finance/invoicing' },
+      { label: 'Expenses', icon: 'pi-credit-card', route: '/finance/expenses' },
+      { label: 'Spreadsheet (BI)', icon: 'pi-chart-bar', route: '/finance/spreadsheet' },
+      { label: 'Documents', icon: 'pi-folder-open', route: '/finance/documents' },
+      { label: 'Sign', icon: 'pi-pencil', route: '/finance/sign' }
     ]
   },
   { group: 'Operations', label: 'Workflows', icon: 'pi-sitemap', route: '/workflow', requires: 'admin' },

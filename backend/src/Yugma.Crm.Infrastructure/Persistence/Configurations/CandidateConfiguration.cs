@@ -18,6 +18,24 @@ internal sealed class CandidateConfiguration : IEntityTypeConfiguration<Candidat
         b.Property(e => e.Location).HasMaxLength(100);
         b.Property(e => e.Owner).HasMaxLength(200);
         b.Property(e => e.ExpectedCtcLakhs).HasColumnType("numeric(10,2)");
+
+        // ---- recruitment workflow ----
+        b.Property(e => e.ResumeFileName).HasMaxLength(260);
+        b.Property(e => e.ResumeUrl);                       // text: data URL or external link
+        b.Property(e => e.Interviewer).HasMaxLength(200);
+        b.Property(e => e.InterviewScheduledAt);
+        // Interview verdicts and the workflow timeline are stored inline as JSON (jsonb) arrays.
+        b.OwnsMany(e => e.Feedback, o => o.ToJson());
+        b.OwnsMany(e => e.Activity, o => o.ToJson());
+
+        // Post-hire onboarding is a single nested JSON document (jsonb).
+        b.OwnsOne(e => e.Onboarding, o =>
+        {
+            o.ToJson();
+            o.Property(x => x.Step).HasConversion<string>();
+            o.OwnsMany(x => x.Documents);
+        });
+
         b.HasIndex(e => new { e.TenantId, e.Stage });
         b.Property(e => e.RowVersion).IsConcurrencyToken();
         b.Ignore(e => e.DomainEvents);
