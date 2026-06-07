@@ -20,4 +20,10 @@ public sealed record EmployeeDto(
     DateTime? UpdatedAt,
     string? AvatarUrl,
     Guid? HrPartnerId = null,
-    string? HrPartner = null);
+    string? HrPartner = null,
+    string? Gender = null,
+    string? Pan = null,
+    string? Uan = null,
+    string? PfNumber = null,
+    string? BankName = null,
+    string? BankAccount = null);

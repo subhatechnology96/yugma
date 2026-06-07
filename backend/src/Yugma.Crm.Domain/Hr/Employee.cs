@@ -32,6 +32,14 @@ public sealed class Employee : Entity<Guid>, IAggregateRoot
     public byte Performance { get; private set; }
     public string? AvatarUrl { get; private set; }
 
+    // ---- statutory & bank details (used on the payslip) ----
+    public string? Gender { get; private set; }
+    public string? Pan { get; private set; }
+    public string? Uan { get; private set; }
+    public string? PfNumber { get; private set; }
+    public string? BankName { get; private set; }
+    public string? BankAccount { get; private set; }
+
     private readonly List<string> _skills = new();
     public IReadOnlyList<string> Skills => _skills.AsReadOnly();
 
@@ -119,6 +127,20 @@ public sealed class Employee : Entity<Guid>, IAggregateRoot
         ManagerId = managerId;
         Manager = string.IsNullOrWhiteSpace(managerName) ? null : managerName.Trim();
         Touch(updatedBy);
+    }
+
+    /// <summary>Sets the employee's statutory IDs and bank details (shown on the payslip). Nulls clear a field.</summary>
+    public void SetStatutory(string? gender, string? pan, string? uan, string? pfNumber, string? bankName, string? bankAccount, string? updatedBy)
+    {
+        Gender = Norm(gender);
+        Pan = Norm(pan)?.ToUpperInvariant();
+        Uan = Norm(uan);
+        PfNumber = Norm(pfNumber);
+        BankName = Norm(bankName);
+        BankAccount = Norm(bankAccount);
+        Touch(updatedBy);
+
+        static string? Norm(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
     }
 
     /// <summary>Assigns the HR partner by id, keeping the name snapshot in sync. Pass null to unassign.</summary>

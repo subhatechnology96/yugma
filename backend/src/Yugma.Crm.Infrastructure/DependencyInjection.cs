@@ -30,15 +30,6 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<YugmaDbContext>());
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 
-        // CRM repositories
-        services.AddScoped<ILeadRepository, LeadRepository>();
-        services.AddScoped<IAccountRepository, AccountRepository>();
-        services.AddScoped<IContactRepository, ContactRepository>();
-        services.AddScoped<IDealRepository, DealRepository>();
-        services.AddScoped<IDealStageRepository, DealStageRepository>();
-        services.AddScoped<IActivityRepository, ActivityRepository>();
-        services.AddScoped<INoteRepository, NoteRepository>();
-
         services.AddScoped<IEmployeeProvisioningHook, EmployeeProvisioningHook>();
         services.AddScoped<IAgentExecutor, MockAgentExecutor>();
         services.AddScoped<AgentRuntime>();

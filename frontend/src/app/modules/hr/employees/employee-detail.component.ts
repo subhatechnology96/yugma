@@ -99,6 +99,27 @@ export class EmployeeDetailComponent implements OnInit {
   protected hrPartnerDraft: string | null = null;
   protected readonly savingPartner = signal(false);
 
+  // Statutory & bank editing
+  protected readonly genderOptions = ['Male', 'Female', 'Other'];
+  statutoryVisible = false;
+  protected readonly savingStatutory = signal(false);
+  statForm: { gender: string | null; pan: string | null; uan: string | null; pfNumber: string | null; bankName: string | null; bankAccount: string | null } =
+    { gender: null, pan: null, uan: null, pfNumber: null, bankName: null, bankAccount: null };
+
+  openStatutory(emp: Employee) {
+    this.statForm = { gender: emp.gender ?? null, pan: emp.pan ?? null, uan: emp.uan ?? null, pfNumber: emp.pfNumber ?? null, bankName: emp.bankName ?? null, bankAccount: emp.bankAccount ?? null };
+    this.statutoryVisible = true;
+  }
+  saveStatutory() {
+    const emp = this.employee();
+    if (!emp) return;
+    this.savingStatutory.set(true);
+    this.svc.setStatutory(emp.id, { ...this.statForm, pan: this.statForm.pan?.toUpperCase() ?? null }).subscribe({
+      next: (updated) => { this.employee.set(updated); this.savingStatutory.set(false); this.statutoryVisible = false; this.messages.add({ severity: 'success', summary: 'Statutory details updated' }); },
+      error: () => { this.savingStatutory.set(false); this.messages.add({ severity: 'error', summary: 'Could not update' }); }
+    });
+  }
+
   saveHrPartner() {
     const emp = this.employee();
     if (!emp) return;

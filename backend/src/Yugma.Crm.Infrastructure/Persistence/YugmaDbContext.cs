@@ -47,15 +47,6 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<InvestmentDeclaration> InvestmentDeclarations => Set<InvestmentDeclaration>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
-    // CRM module
-    public DbSet<Lead> Leads => Set<Lead>();
-    public DbSet<Account> Accounts => Set<Account>();
-    public DbSet<Contact> Contacts => Set<Contact>();
-    public DbSet<Deal> Deals => Set<Deal>();
-    public DbSet<DealStage> DealStages => Set<DealStage>();
-    public DbSet<Activity> Activities => Set<Activity>();
-    public DbSet<Note> Notes => Set<Note>();
-
     // Services module
     public DbSet<Yugma.Crm.Domain.Services.ServiceOrder> ServiceOrders => Set<Yugma.Crm.Domain.Services.ServiceOrder>();
     public DbSet<Yugma.Crm.Domain.Services.ServiceTimesheet> ServiceTimesheets => Set<Yugma.Crm.Domain.Services.ServiceTimesheet>();

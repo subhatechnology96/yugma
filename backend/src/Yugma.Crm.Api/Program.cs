@@ -49,12 +49,6 @@ builder.Services
     });
 builder.Services.AddAuthorization(options =>
 {
-    // CRM role-based policies. Sales Manager + admin can manage everything;
-    // Sales Rep can read & edit; Viewer is read-only.
-    options.AddPolicy("CrmView", p => p.RequireRole("admin", "SalesManager", "SalesRep", "Viewer"));
-    options.AddPolicy("CrmEdit", p => p.RequireRole("admin", "SalesManager", "SalesRep"));
-    options.AddPolicy("CrmManage", p => p.RequireRole("admin", "SalesManager"));
-
     // HR / org policies (roles are issued lower-cased; owner also carries "admin").
     // HrManage: who may change people/hierarchy/teams.  UserManage: who may administer user accounts.
     options.AddPolicy("HrManage", p => p.RequireRole("admin", "owner", "manager", "hr", "super_admin"));

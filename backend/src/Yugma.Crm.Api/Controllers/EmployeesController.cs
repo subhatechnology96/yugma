@@ -131,6 +131,19 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
         return ToActionResult(await mediator.Send(new AssignHrPartnerCommand(id, body.HrPartnerId), ct));
     }
 
+    /// <summary>Sets an employee's statutory IDs (PAN/UAN/PF) and bank details (shown on the payslip).</summary>
+    [HttpPut("{id:guid}/statutory")]
+    [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> SetStatutory(Guid id, [FromBody] StatutoryBody body, CancellationToken ct)
+    {
+        var a = await access.ResolveAsync(ct);
+        if (!a.CanManageEmployee(id))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "forbidden", message = "You can only edit employees you are responsible for." });
+
+        return ToActionResult(await mediator.Send(new SetEmployeeStatutoryCommand(id, body.Gender, body.Pan, body.Uan, body.PfNumber, body.BankName, body.BankAccount), ct));
+    }
+
     private IActionResult ToActionResult<T>(Result<T> result)
     {
         if (result.IsSuccess) return Ok(result.Value);
@@ -147,4 +160,5 @@ public sealed class EmployeesController(ISender mediator, HrAccess access) : Con
     public sealed record UpdateEmployeeBody(string Email, string Phone, string Department, string Designation, string Location, string? Manager, IReadOnlyList<string> Skills);
     public sealed record ChangeStatusBody(string Status);
     public sealed record AssignHrPartnerBody(Guid? HrPartnerId);
+    public sealed record StatutoryBody(string? Gender, string? Pan, string? Uan, string? PfNumber, string? BankName, string? BankAccount);
 }

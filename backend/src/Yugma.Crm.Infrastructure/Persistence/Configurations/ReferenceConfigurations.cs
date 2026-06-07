@@ -66,6 +66,9 @@ internal sealed class PayrollSettingConfiguration : IEntityTypeConfiguration<Pay
                  nameof(PayrollSetting.EsiGrossThreshold), nameof(PayrollSetting.EsiEmployeePct), nameof(PayrollSetting.EsiEmployerPct),
                  nameof(PayrollSetting.StandardDeduction), nameof(PayrollSetting.RebateTaxableLimit), nameof(PayrollSetting.CessPct) })
             b.Property(p).HasColumnType("numeric(18,4)");
+        b.Property(e => e.CompanyName).HasMaxLength(120).HasDefaultValue("Subha Technology");
+        b.Property(e => e.CompanyLegalName).HasMaxLength(160).HasDefaultValue("Subha Technology Pvt. Ltd.");
+        b.Property(e => e.CompanyAddress).HasMaxLength(300);
     }
 }
 

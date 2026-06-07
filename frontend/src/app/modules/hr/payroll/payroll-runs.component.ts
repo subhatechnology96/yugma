@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
@@ -15,26 +15,13 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { PageHeaderComponent } from '@shared/components/page-header/page-header.component';
 import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { environment } from '@env/environment';
+import { PayslipDoc, buildPayslipHtml, printPayslipHtml } from './payslip-template';
 
 interface Run { id: string; year: number; month: number; label: string; status: string; total: number; employees: number; runAt: string; }
 interface Slip {
   id: string; employeeId: string; employee: string; code: string; department: string; designation: string;
   payableDays: number; lopDays: number; basic: number; hra: number; special: number; conveyance: number; bonus: number; otherEarnings: number;
   pf: number; esi: number; pt: number; tds: number; otherDeductions: number; lopDeduction: number; gross: number; totalDeductions: number; net: number; edited: boolean; notes?: string;
-}
-interface LineItem { label: string; amount: number; }
-interface PayslipDoc {
-  company: { name: string; legal: string };
-  title: string;
-  payPeriod: { from: string; to: string; label: string };
-  employee: { id: string; personId: string; name: string; designation: string; department: string; band: string; doj?: string | null; location: string; pan: string; uan: string; pfNo: string; bankName: string; bankAccount: string; daysWorked: number; lwpCurrent: number };
-  standardSalary: LineItem[]; totalStandard: number;
-  earnings: LineItem[]; grossEarnings: number;
-  deductions: LineItem[]; grossDeductions: number;
-  netPay: number;
-  tax: { currentMonthTaxable: number; projectedStandardSalary: number; grossSalary: number; standardDeduction: number; incomeUnderHeadSalary: number; grossTotalIncome: number; totalIncome: number; taxOnTotalIncome: number; healthEducationCess: number; taxPayable: number; taxDeductedSoFar: number; balanceTax: number };
-  chapterVI: LineItem[];
-  monthlyTax: { month: string; amount: number }[];
 }
 
 @Component({
@@ -49,6 +36,7 @@ interface PayslipDoc {
       <p-select [options]="runOptions()" [(ngModel)]="selectedRunId" (ngModelChange)="loadRun($event)" optionLabel="label" optionValue="value" placeholder="Select a run" styleClass="!rounded-lg" appendTo="body" />
       <p-select [options]="monthOptions" [(ngModel)]="genMonth" optionLabel="label" optionValue="value" styleClass="!rounded-lg" appendTo="body" />
       <button pButton severity="secondary" outlined icon="pi pi-bolt" label="Run payroll" [loading]="busy()" (click)="generate()"></button>
+      <button pButton severity="secondary" text icon="pi pi-building" label="Branding" (click)="openBranding()"></button>
     </app-page-header>
 
     @if (run(); as r) {
@@ -161,6 +149,29 @@ interface PayslipDoc {
       </ng-template>
     </p-dialog>
 
+    <!-- Company branding (configurable; shown on every payslip) -->
+    <p-dialog [(visible)]="brandingVisible" [modal]="true" [style]="{ width: '30rem' }" header="Payslip branding" [draggable]="false" [dismissableMask]="true">
+      <div class="space-y-3 pt-1">
+        <p class="text-xs text-surface-500">This appears at the top of every payslip.</p>
+        <div>
+          <label class="text-xs font-medium text-surface-600">Company name</label>
+          <input pInputText [(ngModel)]="branding.companyName" class="w-full mt-1 !rounded-lg" placeholder="e.g. Subha Technology" />
+        </div>
+        <div>
+          <label class="text-xs font-medium text-surface-600">Legal name</label>
+          <input pInputText [(ngModel)]="branding.companyLegalName" class="w-full mt-1 !rounded-lg" placeholder="e.g. Subha Technology Pvt. Ltd." />
+        </div>
+        <div>
+          <label class="text-xs font-medium text-surface-600">Address (optional)</label>
+          <input pInputText [(ngModel)]="branding.companyAddress" class="w-full mt-1 !rounded-lg" placeholder="Registered office address" />
+        </div>
+      </div>
+      <ng-template pTemplate="footer">
+        <button pButton severity="secondary" outlined label="Cancel" (click)="brandingVisible = false"></button>
+        <button pButton label="Save branding" icon="pi pi-check" [loading]="busy()" [disabled]="!branding.companyName.trim()" (click)="saveBranding()"></button>
+      </ng-template>
+    </p-dialog>
+
     <!-- Payslip preview + download -->
     <p-dialog [(visible)]="payslipVisible" [modal]="true" [style]="{ width: '980px', maxWidth: '96vw' }" header="Payslip" [draggable]="false" [dismissableMask]="true">
       <div class="overflow-auto bg-white p-2" [innerHTML]="payslipHtml()"></div>
@@ -176,11 +187,27 @@ export class PayrollRunsComponent {
   private readonly messages = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
   private readonly san = inject(DomSanitizer);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly base = `${environment.apiBaseUrl}/my-work/payroll`;
 
   payslipVisible = false;
   private payslipRaw = '';
   protected readonly payslipHtml = signal<SafeHtml>('');
+
+  brandingVisible = false;
+  branding = { companyName: 'Subha Technology', companyLegalName: 'Subha Technology Pvt. Ltd.', companyAddress: '' as string | null };
+
+  openBranding() {
+    this.brandingVisible = true;
+    this.http.get<typeof this.branding>(`${this.base}/branding`).subscribe((b) => { this.branding = { companyName: b.companyName, companyLegalName: b.companyLegalName, companyAddress: b.companyAddress ?? '' }; this.cdr.markForCheck(); });
+  }
+  saveBranding() {
+    this.busy.set(true);
+    this.http.put(`${this.base}/branding`, this.branding).subscribe({
+      next: () => { this.busy.set(false); this.brandingVisible = false; this.cdr.markForCheck(); this.messages.add({ severity: 'success', summary: 'Branding updated', detail: this.branding.companyName }); },
+      error: () => { this.busy.set(false); this.cdr.markForCheck(); this.messages.add({ severity: 'error', summary: 'Could not save branding' }); }
+    });
+  }
 
   protected readonly runs = signal<Run[]>([]);
   protected readonly run = signal<Run | null>(null);
@@ -277,98 +304,17 @@ export class PayrollRunsComponent {
   // ---- payslip document ----
   openPayslip(s: Slip) {
     const r = this.run(); if (!r) return;
+    this.payslipVisible = true;
     this.http.get<PayslipDoc>(`${this.base}/runs/${r.id}/payslips/${s.id}/document`).subscribe((doc) => {
-      this.payslipRaw = this.buildPayslip(doc);
+      this.payslipRaw = buildPayslipHtml(doc);
       this.payslipHtml.set(this.san.bypassSecurityTrustHtml(this.payslipRaw));
-      this.payslipVisible = true;
+      this.cdr.markForCheck();
     });
   }
   downloadPayslip() {
-    const w = window.open('', '_blank', 'width=1024,height=820');
-    if (!w) { this.messages.add({ severity: 'warn', summary: 'Allow pop-ups to download the payslip' }); return; }
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Payslip</title></head><body style="margin:0" onload="setTimeout(function(){window.print()},150)">${this.payslipRaw}</body></html>`);
-    w.document.close();
+    if (!printPayslipHtml(this.payslipRaw)) this.messages.add({ severity: 'warn', summary: 'Allow pop-ups to download the payslip' });
   }
 
-  private buildPayslip(d: PayslipDoc): string {
-    const f = (n: number) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const dt = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-GB').replace(/\//g, '.') : '—');
-    const e = d.employee;
-    const kv = (rows: [string, string][]) => `<table style="border:none">${rows.map(([k, v]) => `<tr class="nb"><td class="lbl">${k}</td><td class="cl">:</td><td>${v}</td></tr>`).join('')}</table>`;
-    const left: [string, string][] = [
-      ['Employee ID', e.id], ['Person ID', e.personId], ['Designation', e.designation], ['DOJ / Gender', `${dt(e.doj)}`],
-      ['PAN No', e.pan], ['PF // Pension No', e.pfNo], ['UAN No', e.uan]
-    ];
-    const right: [string, string][] = [
-      ['Bank Name & Account No', `${e.bankName} ${e.bankAccount}`], ['Location (CWL)', e.location], ['Department', e.department], ['Band', e.band],
-      ['Days worked in month', f(e.daysWorked)], ['LWP Current/Previous Month', `${e.lwpCurrent.toFixed(2)}/0.00`], ['Sabbatical Leave Current/Previous Mon', '0.00/0.00']
-    ];
-    const maxLen = Math.max(d.standardSalary.length, d.earnings.length, d.deductions.length);
-    const cell = (arr: { label: string; amount: number }[], i: number) => arr[i] ? `<td>${arr[i].label}</td><td class="r">${f(arr[i].amount)}</td>` : '<td></td><td></td>';
-    let salaryRows = '';
-    for (let i = 0; i < maxLen; i++) salaryRows += `<tr>${cell(d.standardSalary, i)}${cell(d.earnings, i)}${cell(d.deductions, i)}</tr>`;
-    const t = d.tax;
-    const projected: [string, string][] = [
-      ['Taxable Income till Pr. Month', f(t.projectedStandardSalary - t.currentMonthTaxable)], ['Current Mth Taxable income', f(t.currentMonthTaxable)],
-      ['Projected Standard Salary', f(t.projectedStandardSalary)], ['Gross Salary', f(t.grossSalary)], ['Standard Deduction', f(t.standardDeduction)],
-      ['Income under Head Salary', f(t.incomeUnderHeadSalary)], ['Gross Total Income', f(t.grossTotalIncome)], ['Total Income', f(t.totalIncome)],
-      ['Tax on Total Income', f(t.taxOnTotalIncome)], ['Health and Education cess', f(t.healthEducationCess)], ['Tax payable', f(t.taxPayable)],
-      ['Tax deducted so far', f(t.taxDeductedSoFar)], ['Balance Tax', f(t.balanceTax)]
-    ];
-    const chapter = d.chapterVI.map((c) => `<tr class="nb"><td>${c.label}</td><td class="r">${f(c.amount)}</td></tr>`).join('')
-      + `<tr class="nb b"><td>Total</td><td class="r">${f(d.chapterVI.reduce((a, c) => a + c.amount, 0))}</td></tr>`;
-    const monthly = d.monthlyTax.map((m) => `<tr class="nb"><td>${m.month}</td><td class="r">${f(m.amount)}</td></tr>`).join('')
-      + `<tr class="nb b"><td>Total</td><td class="r">${f(d.monthlyTax.reduce((a, m) => a + m.amount, 0))}</td></tr>`;
-
-    return `<style>
-      .payslip{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;width:920px;margin:0 auto;border:1px solid #000;background:#fff}
-      .payslip table{border-collapse:collapse;width:100%}
-      .payslip td,.payslip th{border:1px solid #000;padding:2px 6px;vertical-align:top}
-      .payslip .nb td,.payslip table.nb td{border:none;padding:1px 4px}
-      .payslip .lbl{font-weight:bold;white-space:nowrap}.payslip .cl{width:8px}
-      .payslip .r{text-align:right}.payslip .b{font-weight:bold}
-      .payslip .sec{background:#e8e8e8;font-weight:bold}
-      .payslip .center{text-align:center}
-    </style>
-    <div class="payslip">
-      <table><tr>
-        <td style="border:none" class="center">
-          <div class="b" style="font-size:13px">${d.title}</div>
-          <div>${d.payPeriod.label}</div>
-          <div class="b" style="font-size:12px;margin-top:2px">${e.name}</div>
-        </td>
-        <td style="border:none;width:180px;text-align:right">
-          <div class="b" style="color:#1e7fc2;font-size:16px">${d.company.name}</div>
-          <div>${d.company.legal}</div>
-        </td>
-      </tr></table>
-      <table><tr>
-        <td style="width:50%">${kv(left)}</td>
-        <td style="width:50%">${kv(right)}</td>
-      </tr></table>
-      <table>
-        <tr class="sec"><td>Standard Monthly Salary</td><td class="r">INR</td><td>Earnings</td><td class="r">INR</td><td>Deductions</td><td class="r">INR</td></tr>
-        ${salaryRows}
-        <tr class="b"><td>Total Standard Salary</td><td class="r">${f(d.totalStandard)}</td><td>Gross Earnings</td><td class="r">${f(d.grossEarnings)}</td><td>Gross Deductions</td><td class="r">${f(d.grossDeductions)}</td></tr>
-        <tr class="b"><td style="border:none"></td><td style="border:none"></td><td style="border:none"></td><td style="border:none"></td><td class="sec">Net Pay</td><td class="r sec">${f(d.netPay)}</td></tr>
-      </table>
-      <table>
-        <tr class="sec center"><td colspan="4">Income Tax Computation</td></tr>
-        <tr class="sec center"><td>Exemption U/S 10</td><td>Projected / Actual Taxable Salary</td><td>Contribution under Chapter VI A</td><td>Monthly Tax Deduction</td></tr>
-        <tr>
-          <td style="width:22%"></td>
-          <td style="width:34%">${kv(projected)}</td>
-          <td style="width:22%"><table class="nb">${chapter}</table></td>
-          <td style="width:22%"><table class="nb">${monthly}</table></td>
-        </tr>
-      </table>
-      <div style="padding:6px;font-size:9px;line-height:1.4">
-        *This is a computer generated payslip and doesn't require signature or any company seal.<br>
-        *The current month pay slip has got generated after consideration of payroll input i.e. compensation letter, flexi declaration and approved inputs.<br>
-        <div class="center b" style="margin-top:4px">Page 1 of 1</div>
-      </div>
-    </div>`;
-  }
 
   money(n: number): string { return '₹' + Math.round(n).toLocaleString('en-IN'); }
   statusTone(s: string): string {

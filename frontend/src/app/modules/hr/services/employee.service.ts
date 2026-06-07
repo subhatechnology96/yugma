@@ -125,6 +125,11 @@ export class EmployeeService {
     );
   }
 
+  /** Sets an employee's statutory IDs (PAN/UAN/PF) and bank details — shown on the payslip. */
+  setStatutory(id: string, body: { gender?: string | null; pan?: string | null; uan?: string | null; pfNumber?: string | null; bankName?: string | null; bankAccount?: string | null }): Observable<Employee> {
+    return this.http.put<Employee>(`${this.base}/${id}/statutory`, body);
+  }
+
   remove(id: string): Observable<boolean> {
     return this.http.delete<void>(`${this.base}/${id}`).pipe(tap()) as unknown as Observable<boolean>;
   }

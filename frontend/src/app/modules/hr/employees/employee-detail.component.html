@@ -71,6 +71,22 @@
           <p class="mt-2 text-xs text-surface-400">The HR partner sees this employee in their directory and HR screens.</p>
         </div>
       }
+
+      <!-- Statutory & bank (shown on the payslip) -->
+      <div class="mt-6 border-t border-surface-200 dark:border-surface-800 pt-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="section-title">Statutory &amp; bank</div>
+          @if (canEdit()) { <button pButton size="small" text class="!text-[11px] !py-0" icon="pi pi-pencil" label="Edit" (click)="openStatutory(emp)"></button> }
+        </div>
+        <dl class="space-y-2 text-sm">
+          <div class="flex justify-between"><dt class="text-surface-500">Gender</dt><dd class="font-medium">{{ emp.gender || '—' }}</dd></div>
+          <div class="flex justify-between"><dt class="text-surface-500">PAN</dt><dd class="font-medium font-mono">{{ emp.pan || '—' }}</dd></div>
+          <div class="flex justify-between"><dt class="text-surface-500">UAN</dt><dd class="font-medium font-mono">{{ emp.uan || '—' }}</dd></div>
+          <div class="flex justify-between gap-2"><dt class="text-surface-500 shrink-0">PF No</dt><dd class="font-medium truncate">{{ emp.pfNumber || '—' }}</dd></div>
+          <div class="flex justify-between gap-2"><dt class="text-surface-500 shrink-0">Bank</dt><dd class="font-medium truncate">{{ emp.bankName || '—' }}</dd></div>
+          <div class="flex justify-between"><dt class="text-surface-500">Account No</dt><dd class="font-medium font-mono">{{ emp.bankAccount || '—' }}</dd></div>
+        </dl>
+      </div>
     </div>
 
     <!-- Tabs -->
@@ -874,5 +890,39 @@
   <ng-template pTemplate="footer">
     <button pButton severity="secondary" outlined label="Cancel" (click)="leaveDialogVisible = false"></button>
     <button pButton label="Submit request" icon="pi pi-check" [disabled]="savingLeave() || leaveDays() < 1" (click)="submitLeave()"></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Statutory & bank edit -->
+<p-dialog [(visible)]="statutoryVisible" [modal]="true" [style]="{ width: '34rem' }" header="Statutory & bank details" [draggable]="false" [dismissableMask]="true">
+  <div class="grid grid-cols-2 gap-4 pt-2">
+    <div>
+      <label class="text-xs font-medium text-surface-600">Gender</label>
+      <p-select [options]="genderOptions" [(ngModel)]="statForm.gender" [showClear]="true" placeholder="—" styleClass="w-full mt-1 !rounded-lg" appendTo="body" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">PAN</label>
+      <input pInputText [(ngModel)]="statForm.pan" class="w-full mt-1 !rounded-lg uppercase" maxlength="10" placeholder="ABCDE1234F" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">UAN</label>
+      <input pInputText [(ngModel)]="statForm.uan" class="w-full mt-1 !rounded-lg" placeholder="12-digit UAN" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">PF number</label>
+      <input pInputText [(ngModel)]="statForm.pfNumber" class="w-full mt-1 !rounded-lg" placeholder="EPF account no." />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Bank name</label>
+      <input pInputText [(ngModel)]="statForm.bankName" class="w-full mt-1 !rounded-lg" placeholder="e.g. HDFC Bank Ltd" />
+    </div>
+    <div>
+      <label class="text-xs font-medium text-surface-600">Account number</label>
+      <input pInputText [(ngModel)]="statForm.bankAccount" class="w-full mt-1 !rounded-lg" placeholder="Bank account no." />
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <button pButton severity="secondary" outlined label="Cancel" (click)="statutoryVisible = false"></button>
+    <button pButton label="Save" icon="pi pi-check" [loading]="savingStatutory()" (click)="saveStatutory()"></button>
   </ng-template>
 </p-dialog>

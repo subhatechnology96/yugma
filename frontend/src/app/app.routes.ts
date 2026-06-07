@@ -28,12 +28,6 @@ export const APP_ROUTES: Routes = [
         data: { breadcrumb: 'My Work', icon: 'pi-users' }
       },
       {
-        path: 'crm',
-        canActivate: [accessGuard('admin')],
-        loadChildren: () => import('./modules/crm/crm.routes').then((m) => m.CRM_ROUTES),
-        data: { breadcrumb: 'CRM', icon: 'pi-briefcase' }
-      },
-      {
         path: 'services',
         canActivate: [accessGuard('services')],
         loadChildren: () => import('./modules/services/services.routes').then((m) => m.SERVICES_ROUTES),

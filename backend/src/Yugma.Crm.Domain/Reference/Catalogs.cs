@@ -56,6 +56,11 @@ public sealed class PayrollSetting
     public decimal StandardDeduction { get; set; }        // annual, e.g. 75000
     public decimal RebateTaxableLimit { get; set; }       // taxable <= this → nil tax, e.g. 700000
     public decimal CessPct { get; set; }                  // e.g. 0.04
+
+    // Payslip branding (configurable — shown at the top of every payslip).
+    public string CompanyName { get; set; } = "Subha Technology";
+    public string CompanyLegalName { get; set; } = "Subha Technology Pvt. Ltd.";
+    public string? CompanyAddress { get; set; }
 }
 
 /// <summary>Progressive income-tax slabs (new regime). One row per slab.</summary>

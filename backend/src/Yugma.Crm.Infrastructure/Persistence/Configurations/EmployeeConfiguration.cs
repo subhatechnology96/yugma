@@ -40,6 +40,12 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         b.Property(e => e.ManagerId).HasColumnName("manager_id");
         b.Property(e => e.HrPartner).HasMaxLength(200);
         b.Property(e => e.HrPartnerId).HasColumnName("hr_partner_id");
+        b.Property(e => e.Gender).HasMaxLength(20);
+        b.Property(e => e.Pan).HasMaxLength(15);
+        b.Property(e => e.Uan).HasMaxLength(20);
+        b.Property(e => e.PfNumber).HasMaxLength(40);
+        b.Property(e => e.BankName).HasMaxLength(120);
+        b.Property(e => e.BankAccount).HasMaxLength(34);
         b.Property(e => e.Band).HasColumnName("band");
         b.HasIndex(e => new { e.TenantId, e.ManagerId });
         b.HasIndex(e => new { e.TenantId, e.HrPartnerId });

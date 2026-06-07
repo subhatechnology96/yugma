@@ -35,5 +35,11 @@ internal static class EmployeeMapping
         e.UpdatedAt,
         e.AvatarUrl,
         e.HrPartnerId,
-        e.HrPartner);
+        e.HrPartner,
+        e.Gender,
+        e.Pan,
+        e.Uan,
+        e.PfNumber,
+        e.BankName,
+        e.BankAccount);
 }

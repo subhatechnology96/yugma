@@ -391,14 +391,17 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
         var fixedMonthly = p.Basic + p.Hra + p.Special + p.Conveyance;
         var annual = (emp?.CtcLakhs ?? Math.Round(fixedMonthly * 12 / 100_000m, 2)) * 100_000m;
         var std = rules.StandardDeduction;
-        var taxOnIncome = PayrollFactory.AnnualTax(annual, rules);
-        var cess = Math.Round(taxOnIncome * rules.CessPct, 0);
-        var taxPayable = taxOnIncome + cess;
+        // AnnualTax already includes the H&E cess — split it back out so the payslip shows base tax + cess separately.
+        var totalAnnualTax = PayrollFactory.AnnualTax(annual, rules);
+        var baseTax = Math.Round(totalAnnualTax / (1m + rules.CessPct), 0);
+        var cess = totalAnnualTax - baseTax;
+        var taxOnIncome = baseTax;
+        var taxPayable = totalAnnualTax;                                   // base tax + cess (= sum of the 12 monthly TDS)
         // financial-year progress (Apr → Mar)
         var fyStart = month >= 4 ? year : year - 1;
         var monthsElapsed = ((year - fyStart) * 12 + month) - 4 + 1;        // 1..12 within the FY
         var deductedSoFar = Math.Round(p.Tds * Math.Max(0, monthsElapsed - 1), 0);
-        var balanceTax = Math.Max(0m, taxPayable - deductedSoFar - p.Tds);
+        var balanceTax = Math.Max(0m, taxPayable - p.Tds * monthsElapsed);
 
         var fyMonths = Enumerable.Range(0, 12).Select(i =>
         {
@@ -408,7 +411,17 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
             return new { month = mm.ToString("MMM yy"), amount };
         }).ToList();
 
-        var (pan, uan, pfNo, bank, account) = StatutoryIds(p.EmployeeId, p.EmployeeName);
+        // Use the employee's real statutory/bank details when present; otherwise fall back to stable placeholders.
+        var (genPan, genUan, genPf, genBank, genAcct) = StatutoryIds(p.EmployeeId, p.EmployeeName);
+        var pan = string.IsNullOrWhiteSpace(emp?.Pan) ? genPan : emp!.Pan!;
+        var uan = string.IsNullOrWhiteSpace(emp?.Uan) ? genUan : emp!.Uan!;
+        var pfNo = string.IsNullOrWhiteSpace(emp?.PfNumber) ? genPf : emp!.PfNumber!;
+        var bank = string.IsNullOrWhiteSpace(emp?.BankName) ? genBank : emp!.BankName!;
+        var account = string.IsNullOrWhiteSpace(emp?.BankAccount) ? genAcct : emp!.BankAccount!;
+
+        var setting = await db.PayrollSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var companyName = string.IsNullOrWhiteSpace(setting?.CompanyName) ? "Subha Technology" : setting!.CompanyName;
+        var companyLegal = string.IsNullOrWhiteSpace(setting?.CompanyLegalName) ? "Subha Technology Pvt. Ltd." : setting!.CompanyLegalName;
 
         var earnings = new List<object>
         {
@@ -429,7 +442,7 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
 
         return Ok(new
         {
-            company = new { name = "Subha Technology", legal = "Subha Technology Pvt. Ltd." },
+            company = new { name = companyName, legal = companyLegal, address = setting?.CompanyAddress },
             title = $"Salary Payslip for the Month of {monthStart:MMM}-{year}",
             payPeriod = new { from = monthStart, to = monthEnd, label = $"Pay Period {monthStart:dd.MM.yyyy} to {monthEnd:dd.MM.yyyy}" },
             employee = new
@@ -441,6 +454,7 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
                 department = p.Department,
                 band = emp?.Band?.ToString() ?? "—",
                 doj = emp?.JoinedAt,
+                gender = string.IsNullOrWhiteSpace(emp?.Gender) ? "—" : emp!.Gender!,
                 location = emp?.Location ?? "—",
                 pan, uan, pfNo, bankName = bank, bankAccount = account,
                 daysWorked = p.PayableDays - p.LopDays,
@@ -461,6 +475,7 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
             netPay = p.Net,
             tax = new
             {
+                taxableTillPrevMonth = p.Gross * Math.Max(0, monthsElapsed - 1),
                 currentMonthTaxable = p.Gross,
                 projectedStandardSalary = fixedMonthly * 12,
                 grossSalary = annual,
@@ -490,6 +505,58 @@ public sealed class PayrollController(YugmaDbContext db, HrAccess access, ITenan
         var account = (seed % 900000000000 + 100000000000).ToString();
         return (pan, uan, pfNo, "AXIS BANK LTD", account);
     }
+
+    /// <summary>The signed-in employee's own payslips across processed pay runs (self-service view + download).</summary>
+    [HttpGet("my-payslips")]
+    public async Task<IActionResult> MyPayslips(CancellationToken ct)
+    {
+        var acc = await access.ResolveAsync(ct);
+        if (acc.SelfId is not Guid eid) return Ok(Array.Empty<object>());
+        var slips = await db.Payslips.AsNoTracking().Where(p => p.EmployeeId == eid).ToListAsync(ct);
+        if (slips.Count == 0) return Ok(Array.Empty<object>());
+        var runIds = slips.Select(s => s.RunId).Distinct().ToList();
+        var runs = await db.PayrollRuns.AsNoTracking().Where(r => runIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
+        var rows = slips.OrderByDescending(s => s.Year).ThenByDescending(s => s.Month).Select(s => new
+        {
+            runId = s.RunId,
+            payslipId = s.Id,
+            year = s.Year,
+            month = s.Month,
+            label = MonthName(s.Year, s.Month),
+            gross = s.Gross,
+            net = s.Net,
+            status = runs.TryGetValue(s.RunId, out var r) ? r.Status.ToString().ToLowerInvariant() : "draft"
+        });
+        return Ok(rows);
+    }
+
+    /// <summary>The configurable company branding shown on every payslip.</summary>
+    [HttpGet("branding")]
+    public async Task<IActionResult> GetBranding(CancellationToken ct)
+    {
+        var s = await db.PayrollSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        return Ok(new
+        {
+            companyName = string.IsNullOrWhiteSpace(s?.CompanyName) ? "Subha Technology" : s!.CompanyName,
+            companyLegalName = string.IsNullOrWhiteSpace(s?.CompanyLegalName) ? "Subha Technology Pvt. Ltd." : s!.CompanyLegalName,
+            companyAddress = s?.CompanyAddress
+        });
+    }
+
+    [HttpPut("branding")]
+    public async Task<IActionResult> SetBranding([FromBody] BrandingBody body, CancellationToken ct)
+    {
+        if ((await access.ResolveAsync(ct)).Restricted) return HrOnly();
+        var s = await db.PayrollSettings.FirstOrDefaultAsync(ct);
+        if (s is null) return NotFound();
+        if (!string.IsNullOrWhiteSpace(body.CompanyName)) s.CompanyName = body.CompanyName.Trim();
+        if (!string.IsNullOrWhiteSpace(body.CompanyLegalName)) s.CompanyLegalName = body.CompanyLegalName.Trim();
+        s.CompanyAddress = string.IsNullOrWhiteSpace(body.CompanyAddress) ? null : body.CompanyAddress.Trim();
+        await db.SaveChangesAsync(ct);
+        return Ok(new { companyName = s.CompanyName, companyLegalName = s.CompanyLegalName, companyAddress = s.CompanyAddress });
+    }
+
+    public sealed record BrandingBody(string? CompanyName, string? CompanyLegalName, string? CompanyAddress);
 
     private IActionResult HrOnly() => StatusCode(StatusCodes.Status403Forbidden, new { message = "Payroll runs are available to HR and administrators only." });
 

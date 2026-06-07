@@ -74,22 +74,6 @@ export const NAV_ITEMS: NavItem[] = [
     ]
   },
   {
-    group: 'Operations',
-    label: 'CRM',
-    icon: 'pi-briefcase',
-    requires: 'admin',
-    children: [
-      { label: 'Dashboard', icon: 'pi-th-large', route: '/crm/dashboard' },
-      { label: 'Leads', icon: 'pi-filter', route: '/crm/leads' },
-      { label: 'Contacts', icon: 'pi-id-card', route: '/crm/contacts' },
-      { label: 'Accounts', icon: 'pi-building', route: '/crm/accounts' },
-      { label: 'Deals / Pipeline', icon: 'pi-sitemap', route: '/crm/deals' },
-      { label: 'Activities', icon: 'pi-calendar', route: '/crm/activities' },
-      { label: 'Quotes', icon: 'pi-file-edit', route: '/crm/quotes' },
-      { label: 'CRM Analytics', icon: 'pi-chart-pie', route: '/crm/analytics' }
-    ]
-  },
-  {
     // Services delivery — Services-department staff and admins/owners (the "services" role).
     group: 'Services',
     label: 'Services',

@@ -52,7 +52,6 @@ public static class DataSeeder
         await SeedHrModulesAsync(db, ct);
         await SeedEmployeeDocumentsAsync(db, ct);
         await SeedInvoicesAsync(db, ct);
-        await SeedCrmAsync(db, ct);
         await SeedServicesAsync(db, ct);
         await SeedFinanceAsync(db, ct);
         await SeedAuditLogsAsync(db, ct);
@@ -841,174 +840,6 @@ public static class DataSeeder
         );
         await db.SaveChangesAsync(ct);
     }
-
-    private static async Task SeedCrmAsync(YugmaDbContext db, CancellationToken ct)
-    {
-        // 1) Pipeline stages
-        if (!await db.DealStages.IgnoreQueryFilters().AnyAsync(ct))
-        {
-            var stages = new (string Name, int Order, int Prob, bool Won, bool Lost)[]
-            {
-                ("Lead", 1, 10, false, false),
-                ("Qualified", 2, 30, false, false),
-                ("Proposal", 3, 55, false, false),
-                ("Negotiation", 4, 75, false, false),
-                ("Won", 5, 100, true, false),
-                ("Lost", 6, 0, false, true)
-            };
-            foreach (var s in stages)
-                db.DealStages.Add(DealStage.Create(DemoTenant, s.Name, s.Order, s.Prob, s.Won, s.Lost, "seed"));
-            await db.SaveChangesAsync(ct);
-        }
-
-        // 2) Accounts (companies)
-        if (!await db.Accounts.IgnoreQueryFilters().AnyAsync(ct))
-        {
-            var accounts = new (string Name, string Industry, string Web, string Phone, string Size, decimal Rev, string Owner, AccountStatus St)[]
-            {
-                ("Tata Digital",        "Technology", "tatadigital.com",  "+91 22 6661 8000", "1000+",    480_000_000m, "Vikram Singh",    AccountStatus.Customer),
-                ("Reliance Retail",     "Retail",     "relianceretail.com","+91 22 3555 5000", "1000+",    920_000_000m, "Meera Krishnan",  AccountStatus.Customer),
-                ("Infosys BPM",         "BPO",        "infosysbpm.com",   "+91 80 2852 0261", "1000+",    310_000_000m, "Arjun Trivedi",   AccountStatus.Prospect),
-                ("Zomato",              "Foodtech",   "zomato.com",       "+91 80 4974 6300", "501-1000", 180_000_000m, "Vikram Singh",    AccountStatus.Prospect),
-                ("Flipkart Health+",    "Healthtech", "flipkarthealth.in","+91 80 4900 1000", "201-500",   95_000_000m, "Meera Krishnan",  AccountStatus.Prospect),
-                ("Swiggy Instamart",    "Q-commerce", "swiggy.com",       "+91 80 6817 9777", "501-1000", 140_000_000m, "Arjun Trivedi",   AccountStatus.Churned)
-            };
-            foreach (var a in accounts)
-                db.Accounts.Add(Account.Create(DemoTenant, a.Name, a.Industry, a.Web, a.Phone, a.Size, a.Rev, a.Owner, a.St, createdBy: "seed"));
-            await db.SaveChangesAsync(ct);
-        }
-
-        var accByName = (await db.Accounts.IgnoreQueryFilters().ToListAsync(ct)).ToDictionary(a => a.Name);
-        var stageByName = (await db.DealStages.IgnoreQueryFilters().ToListAsync(ct)).ToDictionary(s => s.Name);
-
-        // 3) Contacts (people at accounts)
-        if (!await db.Contacts.IgnoreQueryFilters().AnyAsync(ct))
-        {
-            var contacts = new (string Name, string Email, string Phone, string Title, string Account, string Owner, bool Primary)[]
-            {
-                ("Rohit Bansal",   "rohit.bansal@tatadigital.com",     "+91 98100 11223", "VP Engineering",     "Tata Digital",     "Vikram Singh",   true),
-                ("Kavya Reddy",    "kavya.reddy@relianceretail.com",   "+91 98200 33445", "Head of IT",         "Reliance Retail",  "Meera Krishnan", true),
-                ("Sanjay Gupta",   "sanjay.gupta@infosysbpm.com",      "+91 98300 55667", "Director, Ops",      "Infosys BPM",      "Arjun Trivedi",  true),
-                ("Neha Verma",     "neha.verma@zomato.com",            "+91 98400 77889", "Product Lead",       "Zomato",           "Vikram Singh",   true),
-                ("Aman Khanna",    "aman.khanna@flipkarthealth.in",    "+91 98500 99001", "CTO",                "Flipkart Health+", "Meera Krishnan", true),
-                ("Pooja Nair",     "pooja.nair@swiggy.com",            "+91 98600 22113", "Procurement Manager","Swiggy Instamart", "Arjun Trivedi",  true),
-                ("Vivek Menon",    "vivek.menon@tatadigital.com",      "+91 98700 44225", "Procurement Lead",   "Tata Digital",     "Vikram Singh",   false),
-                ("Ritika Shah",    "ritika.shah@relianceretail.com",   "+91 98800 66337", "Finance Controller", "Reliance Retail",  "Meera Krishnan", false)
-            };
-            foreach (var c in contacts)
-            {
-                if (!accByName.TryGetValue(c.Account, out var acc)) continue;
-                db.Contacts.Add(Contact.Create(DemoTenant,
-                    PersonName.Create(c.Name),
-                    Email.Create(c.Email),
-                    PhoneNumber.Create(c.Phone),
-                    c.Title, acc.Id, c.Owner, c.Primary, "seed"));
-            }
-            await db.SaveChangesAsync(ct);
-        }
-
-        // 4) Leads
-        if (!await db.Leads.IgnoreQueryFilters().AnyAsync(ct))
-        {
-            var leads = new (string Name, string Company, string Email, string Phone, LeadSource Source, int Score, string Owner)[]
-            {
-                ("Ananya Desai",   "PhonePe",        "ananya@phonepe.com",       "+91 99001 11223", LeadSource.Inbound,  88, "Vikram Singh"),
-                ("Karan Malhotra", "Razorpay",       "karan@razorpay.com",       "+91 99002 22334", LeadSource.Website,  72, "Meera Krishnan"),
-                ("Sneha Pillai",   "Meesho",         "sneha@meesho.com",         "+91 99003 33445", LeadSource.Referral, 65, "Arjun Trivedi"),
-                ("Rahul Saxena",   "CRED",           "rahul@cred.club",          "+91 99004 44556", LeadSource.Event,    91, "Vikram Singh"),
-                ("Divya Iyer",     "Nykaa",          "divya@nykaa.com",          "+91 99005 55667", LeadSource.Campaign, 54, "Meera Krishnan"),
-                ("Manish Agarwal", "Groww",          "manish@groww.in",          "+91 99006 66778", LeadSource.ColdCall, 40, "Arjun Trivedi"),
-                ("Tanya Kapoor",   "Urban Company",  "tanya@urbancompany.com",   "+91 99007 77889", LeadSource.Inbound,  77, "Vikram Singh"),
-                ("Sahil Mehta",    "Dream11",        "sahil@dream11.com",        "+91 99008 88990", LeadSource.Partner,  83, "Meera Krishnan"),
-                ("Ishita Roy",     "Lenskart",       "ishita@lenskart.com",      "+91 99009 99001", LeadSource.Website,  61, "Arjun Trivedi"),
-                ("Aakash Jain",    "BharatPe",       "aakash@bharatpe.com",      "+91 99010 11122", LeadSource.Referral, 58, "Vikram Singh"),
-                ("Ritu Sharma",    "Ola Electric",   "ritu@olaelectric.com",     "+91 99011 22233", LeadSource.Event,    69, "Meera Krishnan"),
-                ("Nikhil Rao",     "Unacademy",      "nikhil@unacademy.com",     "+91 99012 33344", LeadSource.Inbound,  47, "Arjun Trivedi")
-            };
-            var i = 0;
-            foreach (var l in leads)
-            {
-                db.Leads.Add(Lead.Create(DemoTenant, $"LEAD-{1001 + i}",
-                    PersonName.Create(l.Name), l.Company,
-                    Email.Create(l.Email),
-                    PhoneNumber.Create(l.Phone),
-                    l.Source, l.Score, l.Owner, "seed"));
-                i++;
-            }
-            await db.SaveChangesAsync(ct);
-        }
-
-        // 5) Deals across stages
-        if (!await db.Deals.IgnoreQueryFilters().AnyAsync(ct))
-        {
-            var deals = new (string Name, string Account, decimal Value, string Stage, string CloseDate, string Owner)[]
-            {
-                ("Tata Digital — Platform licence",      "Tata Digital",     12_500_000m, "Negotiation", "2026-06-20", "Vikram Singh"),
-                ("Reliance Retail — POS rollout",        "Reliance Retail",  28_000_000m, "Proposal",    "2026-07-05", "Meera Krishnan"),
-                ("Infosys BPM — Workforce suite",        "Infosys BPM",       8_400_000m, "Qualified",   "2026-06-28", "Arjun Trivedi"),
-                ("Zomato — Analytics add-on",            "Zomato",            3_600_000m, "Lead",        "2026-07-18", "Vikram Singh"),
-                ("Flipkart Health+ — CRM seats",         "Flipkart Health+",  5_200_000m, "Proposal",    "2026-06-30", "Meera Krishnan"),
-                ("Swiggy Instamart — Inventory module",  "Swiggy Instamart",  6_800_000m, "Negotiation", "2026-06-15", "Arjun Trivedi"),
-                ("Tata Digital — Premium support",       "Tata Digital",      2_400_000m, "Won",         "2026-05-10", "Vikram Singh"),
-                ("Reliance Retail — Loyalty engine",     "Reliance Retail",  15_600_000m, "Qualified",   "2026-08-01", "Meera Krishnan"),
-                ("Zomato — Onboarding services",         "Zomato",            1_800_000m, "Won",         "2026-05-02", "Vikram Singh"),
-                ("Infosys BPM — Pilot expansion",        "Infosys BPM",       9_900_000m, "Lead",        "2026-08-12", "Arjun Trivedi"),
-                ("Flipkart Health+ — Data migration",    "Flipkart Health+",  4_100_000m, "Lead",        "2026-07-25", "Meera Krishnan"),
-                ("Swiggy Instamart — Renewal",           "Swiggy Instamart",  7_300_000m, "Lost",        "2026-05-08", "Arjun Trivedi"),
-                ("Tata Digital — API gateway",           "Tata Digital",     11_200_000m, "Proposal",    "2026-07-10", "Vikram Singh"),
-                ("Reliance Retail — Multi-region",       "Reliance Retail",  19_400_000m, "Negotiation", "2026-06-22", "Meera Krishnan")
-            };
-            var i = 0;
-            foreach (var d in deals)
-            {
-                if (!accByName.TryGetValue(d.Account, out var acc)) continue;
-                if (!stageByName.TryGetValue(d.Stage, out var stage)) continue;
-                var deal = Deal.Create(DemoTenant, $"DEAL-{1001 + i}", d.Name, acc.Id, null,
-                    d.Value, stage.Id, stage.Probability, DateOnly.Parse(d.CloseDate), d.Owner, "seed");
-                if (stage.IsWon) deal.SetStatus(DealStatus.Won, "seed");
-                else if (stage.IsLost) deal.SetStatus(DealStatus.Lost, "seed");
-                db.Deals.Add(deal);
-                i++;
-            }
-            await db.SaveChangesAsync(ct);
-        }
-
-        var allDeals = await db.Deals.IgnoreQueryFilters().ToListAsync(ct);
-        var allLeads = await db.Leads.IgnoreQueryFilters().ToListAsync(ct);
-
-        // 6) Activities (calls, emails, meetings, tasks) linked to deals & leads
-        if (!await db.Activities.IgnoreQueryFilters().AnyAsync(ct) && allDeals.Count > 0)
-        {
-            var now = DateTime.UtcNow;
-            void Add(ActivityType t, string subj, CrmEntityType rt, Guid rid, double dueDays, string owner)
-                => db.Activities.Add(Activity.Create(DemoTenant, t, subj, now.AddDays(dueDays), rt, rid, owner,
-                    reminderAt: now.AddDays(dueDays).AddHours(-2), createdBy: "seed"));
-
-            Add(ActivityType.Call,    "Discovery call — scope POS rollout",   CrmEntityType.Deal, allDeals[1].Id,  1,  "Meera Krishnan");
-            Add(ActivityType.Meeting, "Solution demo with VP Engineering",    CrmEntityType.Deal, allDeals[0].Id,  2,  "Vikram Singh");
-            Add(ActivityType.Email,   "Send revised pricing proposal",        CrmEntityType.Deal, allDeals[4].Id,  3,  "Meera Krishnan");
-            Add(ActivityType.Task,    "Prepare security questionnaire",       CrmEntityType.Deal, allDeals[2].Id,  5,  "Arjun Trivedi");
-            Add(ActivityType.Call,    "Negotiation follow-up",                CrmEntityType.Deal, allDeals[5].Id, -2,  "Arjun Trivedi");
-            Add(ActivityType.Meeting, "Quarterly business review",            CrmEntityType.Deal, allDeals[7].Id,  7,  "Meera Krishnan");
-            Add(ActivityType.Email,   "Intro email — qualify budget",         CrmEntityType.Lead, allLeads[0].Id,  1,  "Vikram Singh");
-            Add(ActivityType.Call,    "Qualify timeline & authority",         CrmEntityType.Lead, allLeads[3].Id,  2,  "Vikram Singh");
-            await db.SaveChangesAsync(ct);
-        }
-
-        // 7) Notes
-        if (!await db.Notes.IgnoreQueryFilters().AnyAsync(ct) && allDeals.Count > 0)
-        {
-            db.Notes.AddRange(
-                Note.Create(DemoTenant, "Champion is the VP Engineering; economic buyer is the CFO. Budget approved for FY27.", CrmEntityType.Deal, allDeals[0].Id, "Vikram Singh", "seed"),
-                Note.Create(DemoTenant, "Competing against an in-house build. Differentiator: time-to-value & SLAs.", CrmEntityType.Deal, allDeals[1].Id, "Meera Krishnan", "seed"),
-                Note.Create(DemoTenant, "Security review scheduled. Needs SOC2 report + DPA.", CrmEntityType.Deal, allDeals[2].Id, "Arjun Trivedi", "seed"),
-                Note.Create(DemoTenant, "Warm inbound from webinar. High intent — fast-track to demo.", CrmEntityType.Lead, allLeads[0].Id, "Vikram Singh", "seed"),
-                Note.Create(DemoTenant, "Met at SaaSBOOMi. Interested in analytics module.", CrmEntityType.Lead, allLeads[3].Id, "Vikram Singh", "seed")
-            );
-            await db.SaveChangesAsync(ct);
-        }
-    }
-
     private static async Task SeedAuditLogsAsync(YugmaDbContext db, CancellationToken ct)
     {
         if (await db.AuditLogs.IgnoreQueryFilters().AnyAsync(ct)) return;
@@ -1159,6 +990,26 @@ public static class DataSeeder
                 db.LeaveRequests.Add(Domain.Hr.Leave.LeaveRequest.Create(DemoTenant, f.Emp, Domain.Hr.Leave.LeaveType.Unpaid,
                     from, to, to.DayNumber - from.DayNumber + 1, Domain.Hr.Leave.LeaveStatus.Approved, "Unpaid leave",
                     today.AddDays(-6), "HR", DateTime.UtcNow.AddDays(-5), "HR"));
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
+        // Backfill statutory IDs + bank details on employees (real values used by the payslip).
+        var needIds = await db.Employees.IgnoreQueryFilters().Where(e => e.Pan == null).ToListAsync(ct);
+        if (needIds.Count > 0)
+        {
+            string[] banks = { "AXIS BANK LTD", "HDFC BANK LTD", "ICICI BANK LTD", "STATE BANK OF INDIA", "KOTAK MAHINDRA BANK" };
+            static long Fnv(string s) { unchecked { long h = 1469598103934665603; foreach (var c in s) { h ^= c; h *= 1099511628211; } return Math.Abs(h); } }
+            foreach (var e in needIds)
+            {
+                var s = Fnv(e.Id.ToString());
+                var letters = new string(e.Name.Full.ToUpperInvariant().Where(char.IsLetter).DefaultIfEmpty('X').Take(5).ToArray()).PadRight(5, 'X');
+                var pan = $"{letters}{s % 9000 + 1000}{(char)('A' + (int)(s % 26))}";
+                var uan = (100000000000 + s % 899999999999).ToString();
+                var pf = $"SUBHA/BG/{s % 9000 + 1000}/{s % 900000 + 100000}";
+                var bank = banks[(int)(s % banks.Length)];
+                var acct = (s % 900000000000 + 100000000000).ToString();
+                e.SetStatutory(s % 2 == 0 ? "Male" : "Female", pan, uan, pf, bank, acct, "seed");
             }
             await db.SaveChangesAsync(ct);
         }

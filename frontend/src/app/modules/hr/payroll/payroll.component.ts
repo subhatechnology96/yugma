@@ -17,7 +17,9 @@ import { PageHeaderComponent } from '@shared/components/page-header/page-header.
 import { StatusPillComponent, StatusTone } from '@shared/components/status-pill/status-pill.component';
 import { AvatarComponent } from '@shared/components/avatar/avatar.component';
 import { environment } from '@env/environment';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { HrAgentRailComponent } from '../agents/hr-agent-rail.component';
+import { PayslipDoc, buildPayslipHtml, printPayslipHtml } from './payslip-template';
 
 interface PayrollRow {
   employeeId: string; name: string; code: string; department: string; designation: string; avatarUrl?: string;
@@ -78,6 +80,7 @@ interface CtcDto {
       <p-tabs value="mypay">
         <p-tablist>
           <p-tab value="mypay">My Payroll</p-tab>
+          <p-tab value="payslips">Payslips</p-tab>
           <p-tab value="declaration">Investment Declaration</p-tab>
           <p-tab value="comparetax">Compare Tax</p-tab>
           <p-tab value="ctc">CTC Details</p-tab>
@@ -610,9 +613,54 @@ interface CtcDto {
               <div class="p-10 grid place-items-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl"></i></div>
             }
           </p-tabpanel>
+
+          <!-- ===================== PAYSLIPS (self-service) ===================== -->
+          <p-tabpanel value="payslips">
+            <div class="p-2">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <div class="section-title">My payslips</div>
+                  <p class="text-xs text-surface-500 mt-0.5">View or download your monthly payslip once HR has run payroll.</p>
+                </div>
+              </div>
+              <p-table [value]="myPayslips()" responsiveLayout="scroll" [rowHover]="true" class="p-1">
+                <ng-template pTemplate="header">
+                  <tr class="!bg-surface-50 dark:!bg-surface-900/40">
+                    <th class="!text-xs !uppercase !text-surface-500">Month</th>
+                    <th class="!text-xs !uppercase !text-surface-500">Status</th>
+                    <th class="!text-xs !uppercase !text-surface-500 !text-right">Gross</th>
+                    <th class="!text-xs !uppercase !text-surface-500 !text-right">Net pay</th>
+                    <th class="!w-48"></th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-p>
+                  <tr>
+                    <td class="font-medium text-sm">{{ p.label }}</td>
+                    <td><app-status-pill [tone]="statusTone(p.status)">{{ p.status | titlecase }}</app-status-pill></td>
+                    <td class="text-right tabular-nums">{{ inr(p.gross) }}</td>
+                    <td class="text-right tabular-nums font-semibold">{{ inr(p.net) }}</td>
+                    <td class="text-right whitespace-nowrap">
+                      <button pButton size="small" text class="!text-[11px]" icon="pi pi-eye" label="View" (click)="viewMyPayslip(p)"></button>
+                      <button pButton size="small" outlined class="!text-[11px] !py-0.5" icon="pi pi-download" label="Download" (click)="downloadMyPayslip(p)"></button>
+                    </td>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="emptymessage"><tr><td colspan="5" class="py-10 text-center text-surface-500">No payslips yet — they appear here once HR runs payroll for the month.</td></tr></ng-template>
+              </p-table>
+            </div>
+          </p-tabpanel>
         </p-tabpanels>
       </p-tabs>
     </div>
+
+    <!-- ===================== Formatted payslip preview + download ===================== -->
+    <p-dialog [(visible)]="docVisible" [modal]="true" [style]="{ width: '980px', maxWidth: '96vw' }" header="Payslip" [draggable]="false" [dismissableMask]="true">
+      <div class="overflow-auto bg-white p-2" [innerHTML]="docHtml()"></div>
+      <ng-template pTemplate="footer">
+        <button pButton severity="secondary" outlined label="Close" (click)="docVisible = false"></button>
+        <button pButton label="Download PDF" icon="pi pi-download" (click)="downloadCurrent()"></button>
+      </ng-template>
+    </p-dialog>
 
     <!-- ===================== Payslip dialog ===================== -->
     <p-dialog [(visible)]="slipVisible" [modal]="true" [style]="{ width: '34rem' }" [header]="'Payslip · ' + (slip()?.name || '')" [draggable]="false" [dismissableMask]="true">
@@ -682,7 +730,31 @@ interface CtcDto {
 export class PayrollComponent {
   private readonly http = inject(HttpClient);
   private readonly messages = inject(MessageService);
+  private readonly san = inject(DomSanitizer);
   private readonly base = `${environment.apiBaseUrl}/my-work/payroll`;
+
+  // ---- self-service payslips ----
+  protected readonly myPayslips = signal<{ runId: string; payslipId: string; label: string; gross: number; net: number; status: string }[]>([]);
+  protected docVisible = false;
+  private docRaw = '';
+  protected readonly docHtml = signal<SafeHtml>('');
+
+  private loadMyPayslips() {
+    this.http.get<{ runId: string; payslipId: string; label: string; gross: number; net: number; status: string }[]>(`${this.base}/my-payslips`).subscribe((rows) => this.myPayslips.set(rows));
+  }
+  private fetchDoc(p: { runId: string; payslipId: string }) {
+    return this.http.get<PayslipDoc>(`${this.base}/runs/${p.runId}/payslips/${p.payslipId}/document`);
+  }
+  viewMyPayslip(p: { runId: string; payslipId: string }) {
+    this.docVisible = true;
+    this.fetchDoc(p).subscribe((doc) => { this.docRaw = buildPayslipHtml(doc); this.docHtml.set(this.san.bypassSecurityTrustHtml(this.docRaw)); });
+  }
+  downloadMyPayslip(p: { runId: string; payslipId: string }) {
+    this.fetchDoc(p).subscribe((doc) => { if (!printPayslipHtml(buildPayslipHtml(doc))) this.messages.add({ severity: 'warn', summary: 'Allow pop-ups to download the payslip' }); });
+  }
+  downloadCurrent() {
+    if (this.docRaw && !printPayslipHtml(this.docRaw)) this.messages.add({ severity: 'warn', summary: 'Allow pop-ups to download the payslip' });
+  }
 
   protected month = new Date();
   protected search = '';
@@ -722,6 +794,7 @@ export class PayrollComponent {
     this.loadRegister();
     this.loadYear();
     this.loadMyPay();
+    this.loadMyPayslips();
     this.loadDeclaration();
     this.loadCtc();
   }

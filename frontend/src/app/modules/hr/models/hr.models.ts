@@ -21,6 +21,13 @@ export interface Employee {
   /** The HR person responsible for this employee, and their name snapshot. */
   hrPartnerId?: string | null;
   hrPartner?: string | null;
+  /** Statutory IDs and bank details (shown on the payslip). */
+  gender?: string | null;
+  pan?: string | null;
+  uan?: string | null;
+  pfNumber?: string | null;
+  bankName?: string | null;
+  bankAccount?: string | null;
 }
 
 export interface LeaveRequest {
