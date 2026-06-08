@@ -28,6 +28,12 @@ export const APP_ROUTES: Routes = [
         data: { breadcrumb: 'My Work', icon: 'pi-users' }
       },
       {
+        path: 'sales',
+        canActivate: [accessGuard('sales')],
+        loadChildren: () => import('./modules/sales/sales.routes').then((m) => m.SALES_ROUTES),
+        data: { breadcrumb: 'Sales', icon: 'pi-shopping-cart' }
+      },
+      {
         path: 'services',
         canActivate: [accessGuard('services')],
         loadChildren: () => import('./modules/services/services.routes').then((m) => m.SERVICES_ROUTES),

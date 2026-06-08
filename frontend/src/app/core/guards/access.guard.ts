@@ -27,6 +27,7 @@ export const accessGuard =
     if (requires === 'admin') return isAdmin ? true : home();
     if (requires === 'services') return isAdmin || roles.some((r) => r === 'services') ? true : home();
     if (requires === 'finance') return isAdmin || roles.some((r) => r === 'finance') ? true : home();
+    if (requires === 'sales') return isAdmin || roles.some((r) => r === 'sales') ? true : home();
 
     return hrAccess.ensure().pipe(
       map((a) => {

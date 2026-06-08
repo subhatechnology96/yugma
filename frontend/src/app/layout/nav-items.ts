@@ -7,8 +7,9 @@
  * - 'admin'      → admin / owner / super_admin roles
  * - 'services'   → Services-department members (the "services" role) or admins/owners
  * - 'finance'    → Finance-department members (the "finance" role) or admins/owners
+ * - 'sales'      → Sales-department members (the "sales" role) or admins/owners
  */
-export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin' | 'services' | 'finance';
+export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin' | 'services' | 'finance' | 'sales';
 
 export interface NavItem {
   label: string;
@@ -71,6 +72,30 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Employee', icon: 'pi-id-card', route: '/my-team/employees' },
       { label: 'Approvals', icon: 'pi-check-square', route: '/my-team/approvals' },
       { label: 'Performance', icon: 'pi-chart-line', route: '/my-team/performance' }
+    ]
+  },
+  {
+    // Sales · CRM — Sales-department staff and admins/owners (the "sales" role).
+    group: 'Sales',
+    label: 'CRM',
+    icon: 'pi-bullseye',
+    requires: 'sales',
+    children: [
+      { label: 'Pipeline', icon: 'pi-sitemap', route: '/sales/crm' },
+      { label: 'Activities', icon: 'pi-bell', route: '/sales/activities' }
+    ]
+  },
+  {
+    // Sales · Quotations & orders.
+    group: 'Sales',
+    label: 'Sales',
+    icon: 'pi-shopping-cart',
+    requires: 'sales',
+    children: [
+      { label: 'Dashboard', icon: 'pi-th-large', route: '/sales/dashboard' },
+      { label: 'Quotations', icon: 'pi-file-edit', route: '/sales/quotations', exact: true },
+      { label: 'Sales Orders', icon: 'pi-check-square', route: '/sales/orders' },
+      { label: 'Products', icon: 'pi-box', route: '/sales/products' }
     ]
   },
   {

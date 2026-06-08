@@ -39,6 +39,7 @@ public sealed class AuthController(YugmaDbContext db, IJwtTokenService jwt) : Co
         {
             "services" => "services",
             "finance" => "finance",
+            "sales" => "sales",
             _ => null
         };
         if (deptRole is not null && !roles.Contains(deptRole))

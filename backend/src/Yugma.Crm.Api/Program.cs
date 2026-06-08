@@ -62,6 +62,10 @@ builder.Services.AddAuthorization(options =>
     // Finance module — dedicated access: the "finance" role (granted to Finance-department users), plus admins/owners.
     options.AddPolicy("FinanceView", p => p.RequireRole("admin", "owner", "finance", "super_admin"));
     options.AddPolicy("FinanceEdit", p => p.RequireRole("admin", "owner", "finance", "super_admin"));
+
+    // Sales module (CRM pipeline + quotations) — the "sales" role (granted to Sales-department users), plus admins/owners.
+    options.AddPolicy("SalesView", p => p.RequireRole("admin", "owner", "sales", "super_admin"));
+    options.AddPolicy("SalesEdit", p => p.RequireRole("admin", "owner", "sales", "super_admin"));
 });
 
 builder.Services.AddControllers();

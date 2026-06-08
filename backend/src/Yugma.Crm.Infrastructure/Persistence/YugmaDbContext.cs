@@ -51,6 +51,11 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<Yugma.Crm.Domain.Services.ServiceOrder> ServiceOrders => Set<Yugma.Crm.Domain.Services.ServiceOrder>();
     public DbSet<Yugma.Crm.Domain.Services.ServiceTimesheet> ServiceTimesheets => Set<Yugma.Crm.Domain.Services.ServiceTimesheet>();
 
+    // Sales module (CRM pipeline + quotations/orders + products)
+    public DbSet<Yugma.Crm.Domain.Sales.Opportunity> Opportunities => Set<Yugma.Crm.Domain.Sales.Opportunity>();
+    public DbSet<Yugma.Crm.Domain.Sales.Product> Products => Set<Yugma.Crm.Domain.Sales.Product>();
+    public DbSet<Yugma.Crm.Domain.Sales.Quotation> Quotations => Set<Yugma.Crm.Domain.Sales.Quotation>();
+
     // Finance module
     public DbSet<Yugma.Crm.Domain.Finance.FinanceDocument> FinanceDocuments => Set<Yugma.Crm.Domain.Finance.FinanceDocument>();
     public DbSet<Yugma.Crm.Domain.Finance.Expense> Expenses => Set<Yugma.Crm.Domain.Finance.Expense>();

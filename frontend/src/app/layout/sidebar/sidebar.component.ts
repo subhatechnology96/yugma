@@ -144,6 +144,8 @@ export class SidebarComponent {
         return isAdmin || roles.some((r) => r === 'services');
       case 'finance':
         return isAdmin || roles.some((r) => r === 'finance');
+      case 'sales':
+        return isAdmin || roles.some((r) => r === 'sales');
       case 'hrManage':
         return this.hrAccess.canManage();
       case 'teamLead':

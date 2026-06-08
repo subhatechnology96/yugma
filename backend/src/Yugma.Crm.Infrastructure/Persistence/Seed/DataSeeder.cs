@@ -14,6 +14,7 @@ using Yugma.Crm.Domain.Hr.ValueObjects;
 using Yugma.Crm.Domain.Identity;
 using Yugma.Crm.Domain.Notifications;
 using Yugma.Crm.Domain.Reference;
+using Yugma.Crm.Domain.Sales;
 using Yugma.Crm.Domain.Services;
 using Yugma.Crm.Domain.Subscriptions;
 using Yugma.Crm.Infrastructure.Auth;
@@ -53,6 +54,7 @@ public static class DataSeeder
         await SeedEmployeeDocumentsAsync(db, ct);
         await SeedInvoicesAsync(db, ct);
         await SeedServicesAsync(db, ct);
+        await SeedSalesAsync(db, ct);
         await SeedFinanceAsync(db, ct);
         await SeedAuditLogsAsync(db, ct);
         await SeedAppUsersAsync(db, ct);
@@ -1015,6 +1017,93 @@ public static class DataSeeder
         }
     }
 
+    private static async Task SeedSalesAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        if (await db.Opportunities.IgnoreQueryFilters().AnyAsync(ct)) return;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var rng = new Random(20260609);
+        var team = new[] { "Mitchell Admin", "Marc Demo", "Priya Sharma" };
+        var customers = new[] { "Deco Addict", "Ready Mat", "Gemini Furniture", "Azure Interior", "The Jackson Group", "Lumber Inc", "Wood Corner" };
+
+        // ── Product catalog ──
+        var products = new (string Code, string Name, string Category, decimal Price, decimal Stock)[]
+        {
+            ("FURN_0096", "Customizable Desk", "Furniture", 750.00m, 45),
+            ("FURN_6741", "Large Meeting Table", "Furniture", 4000.00m, 8),
+            ("FURN_0269", "Office Chair Black", "Furniture", 120.50m, 80),
+            ("FURN_0789", "Individual Workplace", "Furniture", 885.00m, 16),
+            ("FURN_0009", "Wall Shelf Unit", "Furniture", 198.00m, 24),
+            ("FURN_7800", "Four Person Desk", "Furniture", 2350.00m, 12),
+            ("DESK_0001", "Standing Desk Pro", "Furniture", 1299.00m, 20),
+            ("CARP_0150", "Premium Carpet (per sq.m)", "Flooring", 280.00m, 500),
+            ("SERV_0001", "Interior Design Consulting", "Services", 1500.00m, 0),
+            ("SERV_0002", "On-site Installation", "Services", 600.00m, 0),
+            ("SOFT_0001", "Annual Support Plan", "Software", 2400.00m, 0),
+            ("DELI_0010", "Local Delivery", "Logistics", 0.00m, 0)
+        };
+        foreach (var p in products)
+            db.Products.Add(Product.Create(DemoTenant, p.Code, p.Name, p.Price, p.Category, 15m, p.Stock, p.Category == "Services" || p.Category == "Software" ? "Units" : "Units", null, "seed"));
+
+        // ── CRM opportunities across the pipeline ──
+        var defs = new (string Name, SalesStage Stage, decimal Rev, int Pri, string[] Tags, int CloseIn)[]
+        {
+            ("Office Design Project",            SalesStage.New,         24000, 2, new[]{"Design"},               25),
+            ("Quote for 150 carpets",           SalesStage.New,         40000, 1, new[]{"Product"},              18),
+            ("Modern Open Space",               SalesStage.New,         4500,  1, new[]{"Design"},               30),
+            ("Interest in your products",       SalesStage.Qualified,   2000,  2, new[]{"Product","Information"},14),
+            ("DeltaPC: 10 Computer Desks",      SalesStage.Qualified,   35000, 1, new[]{"Information","Training"},20),
+            ("Need 20 Desks",                   SalesStage.Qualified,   60000, 0, new[]{"Product","Consulting"}, 22),
+            ("Open Space Design",               SalesStage.Proposition, 11000, 2, new[]{"Design"},               12),
+            ("Office Design and Architecture",  SalesStage.Proposition, 9000,  2, new[]{"Design","Consulting"},  10),
+            ("5 VP Chairs",                     SalesStage.Proposition, 5600,  1, new[]{"Product"},              8),
+            ("Customizable Desk (15 units)",    SalesStage.Proposition, 15000, 1, new[]{"Product"},              16),
+            ("Distributor Contract",            SalesStage.Won,         19800, 3, new[]{"Information"},          -3),
+            ("Access to Online Catalog",        SalesStage.Won,         2000,  1, new[]{"Services"},             -8),
+            ("Global Solutions: Furnitures",    SalesStage.Won,         3800,  2, new[]{"Design"},               -5),
+            ("Warehouse Racking",               SalesStage.Lost,        12000, 0, new[]{"Product"},              -1)
+        };
+        var n = 1000;
+        var opps = new List<Opportunity>();
+        foreach (var d in defs)
+        {
+            n++;
+            var contact = customers[rng.Next(customers.Length)];
+            var o = Opportunity.Create(DemoTenant, $"OPP-{n}", d.Name, contact, d.Stage, d.Rev, null, d.Pri,
+                $"{contact} Buyer", $"buyer@{contact.Replace(" ", "").ToLowerInvariant()}.com", $"+91 9{rng.Next(100000000, 999999999)}",
+                team[rng.Next(team.Length)], today.AddDays(d.CloseIn), "Website", null, d.Tags, "seed");
+            // Schedule a follow-up on a couple of open ones.
+            if (d.Stage is SalesStage.Qualified or SalesStage.Proposition && rng.Next(2) == 0)
+                o.AddActivity(rng.Next(2) == 0 ? "call" : "meeting", "Call to get system requirements", today.AddDays(rng.Next(1, 4)), "seed");
+            opps.Add(o);
+        }
+        db.Opportunities.AddRange(opps);
+
+        // ── Quotations / sales orders ──
+        var qn = 0;
+        var quotePlan = new (string Customer, QuotationStatus Status, (string Code, string Name, decimal Qty, decimal Price)[] Lines)[]
+        {
+            ("Deco Addict", QuotationStatus.SalesOrder, new[]{ ("FURN_6741","Large Meeting Table",1m,4000m), ("DELI_0010","Local Delivery",1m,0m) }),
+            ("Ready Mat", QuotationStatus.Sent, new[]{ ("FURN_0096","Customizable Desk",10m,750m), ("SERV_0002","On-site Installation",1m,600m) }),
+            ("Gemini Furniture", QuotationStatus.Quotation, new[]{ ("FURN_0269","Office Chair Black",5m,120.50m) }),
+            ("Azure Interior", QuotationStatus.Quotation, new[]{ ("FURN_0096","Customizable Desk",15m,750m) }),
+            ("The Jackson Group", QuotationStatus.SalesOrder, new[]{ ("CARP_0150","Premium Carpet (per sq.m)",150m,280m), ("SERV_0001","Interior Design Consulting",1m,1500m) }),
+            ("Lumber Inc", QuotationStatus.Sent, new[]{ ("FURN_7800","Four Person Desk",3m,2350m) }),
+            ("Wood Corner", QuotationStatus.Quotation, new[]{ ("DESK_0001","Standing Desk Pro",4m,1299m), ("FURN_0009","Wall Shelf Unit",6m,198m) })
+        };
+        foreach (var p in quotePlan)
+        {
+            qn++;
+            var lines = p.Lines.Select(l => new QuotationLine { ProductCode = l.Code, Product = l.Name, Quantity = l.Qty, UnitPrice = l.Price, TaxPercent = 15m }).ToList();
+            var order = today.AddDays(-rng.Next(2, 30));
+            db.Quotations.Add(Quotation.Create(DemoTenant, $"S{qn:00000}", p.Customer, order, p.Status,
+                order.AddDays(15), $"contact@{p.Customer.Replace(" ", "").ToLowerInvariant()}.com", null, "INR", "30 Days",
+                team[rng.Next(team.Length)], null, null, lines, "seed"));
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static async Task SeedFinanceAsync(YugmaDbContext db, CancellationToken ct)
     {
         if (await db.FinanceDocuments.IgnoreQueryFilters().AnyAsync(ct)) return;
@@ -1187,7 +1276,10 @@ public static class DataSeeder
             ("Anjali Gupta",      "service.agent@yugma.io",   "Member",  "Helpdesk Agent",           "Services"),
             // Finance department logins — these carry the "finance" role (department-based access to the Finance module).
             ("Nisha Agarwal",     "finance.manager@yugma.io",    "Manager", "Finance Controller", "Finance"),
-            ("Rahul Mehta",       "finance.accountant@yugma.io", "Member",  "Senior Accountant",  "Finance")
+            ("Rahul Mehta",       "finance.accountant@yugma.io", "Member",  "Senior Accountant",  "Finance"),
+            // Sales department logins — these carry the "sales" role (department-based access to the Sales/CRM module).
+            ("Mitchell Admin",    "sales.manager@yugma.io",      "Manager", "Sales Manager",      "Sales"),
+            ("Marc Demo",         "sales.rep@yugma.io",          "Member",  "Sales Representative","Sales")
         };
         foreach (var p in personas)
         {
