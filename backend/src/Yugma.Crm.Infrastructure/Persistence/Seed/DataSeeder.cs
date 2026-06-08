@@ -16,6 +16,7 @@ using Yugma.Crm.Domain.Notifications;
 using Yugma.Crm.Domain.Reference;
 using Yugma.Crm.Domain.Sales;
 using Yugma.Crm.Domain.Services;
+using Yugma.Crm.Domain.SupplyChain;
 using Yugma.Crm.Domain.Subscriptions;
 using Yugma.Crm.Infrastructure.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,7 @@ public static class DataSeeder
         await SeedInvoicesAsync(db, ct);
         await SeedServicesAsync(db, ct);
         await SeedSalesAsync(db, ct);
+        await SeedSupplyChainAsync(db, ct);
         await SeedFinanceAsync(db, ct);
         await SeedAuditLogsAsync(db, ct);
         await SeedAppUsersAsync(db, ct);
@@ -1104,6 +1106,149 @@ public static class DataSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    private static async Task SeedSupplyChainAsync(YugmaDbContext db, CancellationToken ct)
+    {
+        if (await db.StockItems.IgnoreQueryFilters().AnyAsync(ct)) return;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var rng = new Random(20260610);
+        var team = new[] { "Marc Demo", "Mitchell Admin", "Joel Willis", "Lucia Garcia" };
+
+        // ── Inventory: stock items ──
+        var items = new (string Sku, string Name, string Cat, decimal OnHand, decimal Reserved, decimal Reorder, decimal Cost)[]
+        {
+            ("FURN_0096", "Customizable Desk", "Furniture", 45, 6, 20, 520),
+            ("FURN_6741", "Large Meeting Table", "Furniture", 8, 1, 5, 2800),
+            ("FURN_0269", "Office Chair Black", "Furniture", 80, 12, 30, 78),
+            ("FURN_7800", "Four Person Desk", "Furniture", 12, 3, 6, 1650),
+            ("COMP_0001", "Table Top (Oak)", "Components", 120, 40, 50, 95),
+            ("COMP_0002", "Steel Leg Set", "Components", 200, 60, 80, 32),
+            ("COMP_0003", "Chair Frame", "Components", 150, 20, 60, 41),
+            ("COMP_0004", "Castor Wheel", "Components", 600, 120, 200, 4.5m),
+            ("RAW_0001", "Plywood Sheet 18mm", "Raw Material", 14, 0, 30, 56),
+            ("RAW_0002", "Foam Padding (roll)", "Raw Material", 9, 0, 20, 88),
+            ("CARP_0150", "Premium Carpet (sq.m)", "Flooring", 500, 150, 200, 180),
+            ("PACK_0001", "Carton Box (large)", "Packaging", 350, 0, 100, 12)
+        };
+        foreach (var i in items)
+            db.StockItems.Add(StockItem.Create(DemoTenant, i.Sku, i.Name, i.Cat, "WH/Stock", i.OnHand, i.Reserved, i.Reorder, i.Cost, "Units", "seed"));
+
+        // ── Inventory: stock moves (transfers) ──
+        var mn = 0;
+        var moves = new (StockMoveType Type, string Product, decimal Qty, StockMoveStatus St, string Partner, int Days)[]
+        {
+            (StockMoveType.Receipt, "Plywood Sheet 18mm", 100, StockMoveStatus.Ready, "Lumber Inc", 1),
+            (StockMoveType.Receipt, "Steel Leg Set", 200, StockMoveStatus.Done, "MetalWorks Ltd", -2),
+            (StockMoveType.Receipt, "Foam Padding (roll)", 40, StockMoveStatus.Draft, "Comfort Supplies", 3),
+            (StockMoveType.Delivery, "Customizable Desk", 10, StockMoveStatus.Ready, "Deco Addict", 0),
+            (StockMoveType.Delivery, "Office Chair Black", 20, StockMoveStatus.Done, "Ready Mat", -1),
+            (StockMoveType.Delivery, "Large Meeting Table", 1, StockMoveStatus.Draft, "Gemini Furniture", 2),
+            (StockMoveType.Internal, "Table Top (Oak)", 30, StockMoveStatus.Ready, "WH/Assembly", 0),
+            (StockMoveType.Internal, "Chair Frame", 25, StockMoveStatus.Draft, "WH/Assembly", 1)
+        };
+        foreach (var m in moves)
+        {
+            mn++;
+            var prefix = m.Type switch { StockMoveType.Receipt => "WH/IN/", StockMoveType.Delivery => "WH/OUT/", _ => "WH/INT/" };
+            var (src, dst) = m.Type switch { StockMoveType.Receipt => (m.Partner, "WH/Stock"), StockMoveType.Delivery => ("WH/Stock", m.Partner), _ => ("WH/Stock", m.Partner) };
+            db.StockMoves.Add(StockMove.Create(DemoTenant, $"{prefix}{mn:00000}", m.Type, m.Product, m.Qty, src, dst, today.AddDays(m.Days), m.St,
+                m.Type == StockMoveType.Internal ? null : m.Partner, "seed"));
+        }
+
+        // ── Manufacturing orders ──
+        var mon = 0;
+        var mos = new (string Product, decimal Qty, ManufacturingStage Stage, (string P, decimal Q)[] Comp, int Days)[]
+        {
+            ("Customizable Desk", 10, ManufacturingStage.Confirmed, new[]{ ("Table Top (Oak)",10m), ("Steel Leg Set",10m) }, 3),
+            ("Office Chair Black", 25, ManufacturingStage.InProgress, new[]{ ("Chair Frame",25m), ("Castor Wheel",125m), ("Foam Padding (roll)",3m) }, 1),
+            ("Four Person Desk", 4, ManufacturingStage.Draft, new[]{ ("Table Top (Oak)",8m), ("Steel Leg Set",8m) }, 7),
+            ("Large Meeting Table", 2, ManufacturingStage.Done, new[]{ ("Plywood Sheet 18mm",6m), ("Steel Leg Set",4m) }, -4),
+            ("Customizable Desk", 15, ManufacturingStage.Confirmed, new[]{ ("Table Top (Oak)",15m), ("Steel Leg Set",15m) }, 5)
+        };
+        foreach (var m in mos)
+        {
+            mon++;
+            var comps = m.Comp.Select(c => new BomComponent { Product = c.P, Quantity = c.Q, Uom = "Units", Consumed = m.Stage == ManufacturingStage.Done }).ToList();
+            db.ManufacturingOrders.Add(ManufacturingOrder.Create(DemoTenant, $"MO/{mon:00000}", m.Product, m.Qty, today.AddDays(m.Days), m.Stage, "Units", team[rng.Next(team.Length)], null, comps, "seed"));
+        }
+
+        // ── PLM: engineering change orders ──
+        var en = 0;
+        var ecos = new (string Title, string Product, EcoType Type, EcoStage Stage, int Pri)[]
+        {
+            ("Switch desk legs to powder-coated steel", "Customizable Desk", EcoType.BillOfMaterials, EcoStage.InProgress, 2),
+            ("New ergonomic chair frame revision", "Office Chair Black", EcoType.ProductDesign, EcoStage.New, 1),
+            ("Update assembly routing for meeting table", "Large Meeting Table", EcoType.Routing, EcoStage.Approved, 1),
+            ("Add sustainability spec sheet", "Four Person Desk", EcoType.Documentation, EcoStage.Done, 0),
+            ("Reduce foam thickness to cut cost", "Office Chair Black", EcoType.BillOfMaterials, EcoStage.New, 3)
+        };
+        foreach (var e in ecos)
+        {
+            en++;
+            db.EngineeringChanges.Add(EngineeringChange.Create(DemoTenant, $"ECO/{en:00000}", e.Title, e.Product, e.Type, e.Stage, e.Pri,
+                team[rng.Next(team.Length)], "Proposed change pending engineering review and approval.", e.Stage == EcoStage.Approved ? today.AddDays(7) : null, "seed"));
+        }
+
+        // ── Purchase orders ──
+        var pn = 0;
+        var pos = new (string Vendor, PurchaseStatus Status, (string P, decimal Q, decimal Price)[] Lines, int Days)[]
+        {
+            ("Lumber Inc", PurchaseStatus.Purchase, new[]{ ("Plywood Sheet 18mm",100m,56m), ("Table Top (Oak)",50m,95m) }, -5),
+            ("MetalWorks Ltd", PurchaseStatus.Sent, new[]{ ("Steel Leg Set",200m,32m), ("Chair Frame",60m,41m) }, -2),
+            ("Comfort Supplies", PurchaseStatus.Rfq, new[]{ ("Foam Padding (roll)",40m,88m) }, 1),
+            ("Castor World", PurchaseStatus.Received, new[]{ ("Castor Wheel",500m,4.5m) }, -10),
+            ("PackRight Co", PurchaseStatus.Rfq, new[]{ ("Carton Box (large)",300m,12m) }, 3)
+        };
+        foreach (var p in pos)
+        {
+            pn++;
+            var lines = p.Lines.Select(l => new PurchaseLine { Product = l.P, Quantity = l.Q, UnitPrice = l.Price, TaxPercent = 18m }).ToList();
+            var order = today.AddDays(p.Days);
+            db.PurchaseOrders.Add(PurchaseOrder.Create(DemoTenant, $"P{pn:00000}", p.Vendor, order, p.Status, order.AddDays(7),
+                $"orders@{p.Vendor.Replace(" ", "").ToLowerInvariant()}.com", team[rng.Next(team.Length)], null, lines, "seed"));
+        }
+
+        // ── Maintenance requests ──
+        var mrn = 0;
+        var mrs = new (string Title, string Equip, MaintenanceKind Kind, MaintenanceStage Stage, int Pri, decimal Hrs)[]
+        {
+            ("CNC router spindle noise", "CNC Router #1", MaintenanceKind.Corrective, MaintenanceStage.InProgress, 3, 4),
+            ("Quarterly forklift service", "Forklift FL-02", MaintenanceKind.Preventive, MaintenanceStage.New, 1, 2),
+            ("Replace conveyor belt", "Assembly Conveyor", MaintenanceKind.Corrective, MaintenanceStage.New, 2, 6),
+            ("Calibrate paint booth sensors", "Paint Booth A", MaintenanceKind.Preventive, MaintenanceStage.Repaired, 1, 3),
+            ("Compressor oil change", "Air Compressor #3", MaintenanceKind.Preventive, MaintenanceStage.Repaired, 0, 1.5m),
+            ("Saw blade guard damaged", "Panel Saw PS-1", MaintenanceKind.Corrective, MaintenanceStage.Scrap, 2, 0)
+        };
+        foreach (var m in mrs)
+        {
+            mrn++;
+            db.MaintenanceRequests.Add(MaintenanceRequest.Create(DemoTenant, $"MR/{mrn:00000}", m.Title, m.Equip, m.Kind, m.Stage, m.Pri,
+                team[rng.Next(team.Length)], m.Kind == MaintenanceKind.Preventive ? "Scheduled" : "Breakdown", today.AddDays(rng.Next(-3, 8)), m.Hrs,
+                "Reported via shop-floor maintenance terminal.", "seed"));
+        }
+
+        // ── Quality checks ──
+        var qn = 0;
+        var qcs = new (string Title, string Product, QualityCheckType Type, QualityStatus Status, string Point)[]
+        {
+            ("Incoming plywood moisture check", "Plywood Sheet 18mm", QualityCheckType.Measure, QualityStatus.Pass, "Receipt"),
+            ("Desk surface finish inspection", "Customizable Desk", QualityCheckType.PassFail, QualityStatus.ToDo, "Final Inspection"),
+            ("Chair load test (120kg)", "Office Chair Black", QualityCheckType.PassFail, QualityStatus.Pass, "Final Inspection"),
+            ("Steel leg coating thickness", "Steel Leg Set", QualityCheckType.Measure, QualityStatus.Fail, "Receipt"),
+            ("Meeting table alignment", "Large Meeting Table", QualityCheckType.Instructions, QualityStatus.ToDo, "In-Process"),
+            ("Carton drop test", "Carton Box (large)", QualityCheckType.PassFail, QualityStatus.Pass, "Packaging")
+        };
+        foreach (var c in qcs)
+        {
+            qn++;
+            db.QualityChecks.Add(QualityCheck.Create(DemoTenant, $"QC/{qn:00000}", c.Title, c.Product, c.Type, c.Point, c.Status,
+                $"WH/IN/{rng.Next(1, 5):00000}", team[rng.Next(team.Length)], c.Type == QualityCheckType.Measure ? "Tolerance ±0.5mm" : null,
+                c.Status == QualityStatus.Fail ? "Out of tolerance — quarantined and returned to vendor." : null, "seed"));
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private static async Task SeedFinanceAsync(YugmaDbContext db, CancellationToken ct)
     {
         if (await db.FinanceDocuments.IgnoreQueryFilters().AnyAsync(ct)) return;
@@ -1279,7 +1424,10 @@ public static class DataSeeder
             ("Rahul Mehta",       "finance.accountant@yugma.io", "Member",  "Senior Accountant",  "Finance"),
             // Sales department logins — these carry the "sales" role (department-based access to the Sales/CRM module).
             ("Mitchell Admin",    "sales.manager@yugma.io",      "Manager", "Sales Manager",      "Sales"),
-            ("Marc Demo",         "sales.rep@yugma.io",          "Member",  "Sales Representative","Sales")
+            ("Marc Demo",         "sales.rep@yugma.io",          "Member",  "Sales Representative","Sales"),
+            // Supply Chain department logins — these carry the "supplychain" role (Inventory/Manufacturing/PLM/Purchase/Maintenance/Quality).
+            ("Joel Willis",       "supply.manager@yugma.io",     "Manager", "Supply Chain Manager","Supply Chain"),
+            ("Lucia Garcia",      "supply.operator@yugma.io",    "Member",  "Warehouse Operator",  "Supply Chain")
         };
         foreach (var p in personas)
         {

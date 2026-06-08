@@ -34,6 +34,12 @@ export const APP_ROUTES: Routes = [
         data: { breadcrumb: 'Sales', icon: 'pi-shopping-cart' }
       },
       {
+        path: 'supply-chain',
+        canActivate: [accessGuard('supplychain')],
+        loadChildren: () => import('./modules/supply-chain/supply-chain.routes').then((m) => m.SUPPLY_CHAIN_ROUTES),
+        data: { breadcrumb: 'Supply Chain', icon: 'pi-box' }
+      },
+      {
         path: 'services',
         canActivate: [accessGuard('services')],
         loadChildren: () => import('./modules/services/services.routes').then((m) => m.SERVICES_ROUTES),

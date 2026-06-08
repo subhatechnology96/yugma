@@ -56,6 +56,15 @@ public sealed class YugmaDbContext(DbContextOptions<YugmaDbContext> options, ITe
     public DbSet<Yugma.Crm.Domain.Sales.Product> Products => Set<Yugma.Crm.Domain.Sales.Product>();
     public DbSet<Yugma.Crm.Domain.Sales.Quotation> Quotations => Set<Yugma.Crm.Domain.Sales.Quotation>();
 
+    // Supply Chain module (Inventory / Manufacturing / PLM / Purchase / Maintenance / Quality)
+    public DbSet<Yugma.Crm.Domain.SupplyChain.StockItem> StockItems => Set<Yugma.Crm.Domain.SupplyChain.StockItem>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.StockMove> StockMoves => Set<Yugma.Crm.Domain.SupplyChain.StockMove>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.ManufacturingOrder> ManufacturingOrders => Set<Yugma.Crm.Domain.SupplyChain.ManufacturingOrder>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.EngineeringChange> EngineeringChanges => Set<Yugma.Crm.Domain.SupplyChain.EngineeringChange>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.PurchaseOrder> PurchaseOrders => Set<Yugma.Crm.Domain.SupplyChain.PurchaseOrder>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.MaintenanceRequest> MaintenanceRequests => Set<Yugma.Crm.Domain.SupplyChain.MaintenanceRequest>();
+    public DbSet<Yugma.Crm.Domain.SupplyChain.QualityCheck> QualityChecks => Set<Yugma.Crm.Domain.SupplyChain.QualityCheck>();
+
     // Finance module
     public DbSet<Yugma.Crm.Domain.Finance.FinanceDocument> FinanceDocuments => Set<Yugma.Crm.Domain.Finance.FinanceDocument>();
     public DbSet<Yugma.Crm.Domain.Finance.Expense> Expenses => Set<Yugma.Crm.Domain.Finance.Expense>();

@@ -66,6 +66,10 @@ builder.Services.AddAuthorization(options =>
     // Sales module (CRM pipeline + quotations) — the "sales" role (granted to Sales-department users), plus admins/owners.
     options.AddPolicy("SalesView", p => p.RequireRole("admin", "owner", "sales", "super_admin"));
     options.AddPolicy("SalesEdit", p => p.RequireRole("admin", "owner", "sales", "super_admin"));
+
+    // Supply Chain module (Inventory/Manufacturing/PLM/Purchase/Maintenance/Quality) — the "supplychain" role, plus admins/owners.
+    options.AddPolicy("SupplyChainView", p => p.RequireRole("admin", "owner", "supplychain", "super_admin"));
+    options.AddPolicy("SupplyChainEdit", p => p.RequireRole("admin", "owner", "supplychain", "super_admin"));
 });
 
 builder.Services.AddControllers();

@@ -8,8 +8,9 @@
  * - 'services'   → Services-department members (the "services" role) or admins/owners
  * - 'finance'    → Finance-department members (the "finance" role) or admins/owners
  * - 'sales'      → Sales-department members (the "sales" role) or admins/owners
+ * - 'supplychain'→ Supply-Chain-department members (the "supplychain" role) or admins/owners
  */
-export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin' | 'services' | 'finance' | 'sales';
+export type NavAccess = 'hasReports' | 'teamLead' | 'hrManage' | 'admin' | 'services' | 'finance' | 'sales' | 'supplychain';
 
 export interface NavItem {
   label: string;
@@ -130,6 +131,13 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Sign', icon: 'pi-pencil', route: '/finance/sign' }
     ]
   },
+  // Supply Chain — Supply-Chain-department staff and admins/owners (the "supplychain" role).
+  { group: 'Supply Chain', label: 'Inventory', icon: 'pi-box', route: '/supply-chain/inventory', requires: 'supplychain' },
+  { group: 'Supply Chain', label: 'Manufacturing', icon: 'pi-cog', route: '/supply-chain/manufacturing', requires: 'supplychain' },
+  { group: 'Supply Chain', label: 'PLM', icon: 'pi-sync', route: '/supply-chain/plm', requires: 'supplychain' },
+  { group: 'Supply Chain', label: 'Purchase', icon: 'pi-shopping-bag', route: '/supply-chain/purchase', requires: 'supplychain' },
+  { group: 'Supply Chain', label: 'Maintenance', icon: 'pi-wrench', route: '/supply-chain/maintenance', requires: 'supplychain' },
+  { group: 'Supply Chain', label: 'Quality', icon: 'pi-verified', route: '/supply-chain/quality', requires: 'supplychain' },
   { group: 'Operations', label: 'Workflows', icon: 'pi-sitemap', route: '/workflow', requires: 'admin' },
   { group: 'Insights', label: 'Reports & Analytics', icon: 'pi-chart-bar', route: '/reports', requires: 'hrManage' },
   { group: 'Insights', label: 'AI Assistant', icon: 'pi-sparkles', route: '/ai-assistant', badge: 'Beta', badgeTone: 'warn' },
