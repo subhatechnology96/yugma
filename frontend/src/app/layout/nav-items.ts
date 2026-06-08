@@ -76,24 +76,15 @@ export const NAV_ITEMS: NavItem[] = [
     ]
   },
   {
-    // Sales · CRM — Sales-department staff and admins/owners (the "sales" role).
-    group: 'Sales',
-    label: 'CRM',
-    icon: 'pi-bullseye',
-    requires: 'sales',
-    children: [
-      { label: 'Pipeline', icon: 'pi-sitemap', route: '/sales/crm' },
-      { label: 'Activities', icon: 'pi-bell', route: '/sales/activities' }
-    ]
-  },
-  {
-    // Sales · Quotations & orders.
+    // Sales — one menu, all sub-screens (CRM pipeline + quotations/orders + products).
     group: 'Sales',
     label: 'Sales',
     icon: 'pi-shopping-cart',
     requires: 'sales',
     children: [
       { label: 'Dashboard', icon: 'pi-th-large', route: '/sales/dashboard' },
+      { label: 'CRM Pipeline', icon: 'pi-sitemap', route: '/sales/crm' },
+      { label: 'Activities', icon: 'pi-bell', route: '/sales/activities' },
       { label: 'Quotations', icon: 'pi-file-edit', route: '/sales/quotations', exact: true },
       { label: 'Sales Orders', icon: 'pi-check-square', route: '/sales/orders' },
       { label: 'Products', icon: 'pi-box', route: '/sales/products' }
@@ -131,13 +122,21 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Sign', icon: 'pi-pencil', route: '/finance/sign' }
     ]
   },
-  // Supply Chain — Supply-Chain-department staff and admins/owners (the "supplychain" role).
-  { group: 'Supply Chain', label: 'Inventory', icon: 'pi-box', route: '/supply-chain/inventory', requires: 'supplychain' },
-  { group: 'Supply Chain', label: 'Manufacturing', icon: 'pi-cog', route: '/supply-chain/manufacturing', requires: 'supplychain' },
-  { group: 'Supply Chain', label: 'PLM', icon: 'pi-sync', route: '/supply-chain/plm', requires: 'supplychain' },
-  { group: 'Supply Chain', label: 'Purchase', icon: 'pi-shopping-bag', route: '/supply-chain/purchase', requires: 'supplychain' },
-  { group: 'Supply Chain', label: 'Maintenance', icon: 'pi-wrench', route: '/supply-chain/maintenance', requires: 'supplychain' },
-  { group: 'Supply Chain', label: 'Quality', icon: 'pi-verified', route: '/supply-chain/quality', requires: 'supplychain' },
+  {
+    // Supply Chain — one menu, all six areas nested under it.
+    group: 'Supply Chain',
+    label: 'Supply Chain',
+    icon: 'pi-box',
+    requires: 'supplychain',
+    children: [
+      { label: 'Inventory', icon: 'pi-box', route: '/supply-chain/inventory' },
+      { label: 'Manufacturing', icon: 'pi-cog', route: '/supply-chain/manufacturing' },
+      { label: 'PLM', icon: 'pi-sync', route: '/supply-chain/plm' },
+      { label: 'Purchase', icon: 'pi-shopping-bag', route: '/supply-chain/purchase' },
+      { label: 'Maintenance', icon: 'pi-wrench', route: '/supply-chain/maintenance' },
+      { label: 'Quality', icon: 'pi-verified', route: '/supply-chain/quality' }
+    ]
+  },
   { group: 'Operations', label: 'Workflows', icon: 'pi-sitemap', route: '/workflow', requires: 'admin' },
   { group: 'Insights', label: 'Reports & Analytics', icon: 'pi-chart-bar', route: '/reports', requires: 'hrManage' },
   { group: 'Insights', label: 'AI Assistant', icon: 'pi-sparkles', route: '/ai-assistant', badge: 'Beta', badgeTone: 'warn' },
