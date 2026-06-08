@@ -504,7 +504,7 @@ export class PerformanceComponent {
 
   dist = computed(() => ({
     labels: ['1', '2', '3', '4', '5'],
-    datasets: [{ label: 'Employees', data: this.summary().distribution, backgroundColor: '#4361ff', borderRadius: 8, barThickness: 36 }]
+    datasets: [{ label: 'Employees', data: this.summary().distribution, backgroundColor: '#6366f1', borderRadius: 8, barThickness: 36 }]
   }));
 
   opts = computed(() => {

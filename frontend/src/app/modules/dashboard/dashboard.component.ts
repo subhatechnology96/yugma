@@ -304,7 +304,7 @@ export class DashboardComponent {
     const labels = [...counts.keys()].sort((a, b) => (counts.get(b)! - counts.get(a)!));
     return {
       labels,
-      datasets: [{ label: 'Headcount', data: labels.map((l) => counts.get(l)!), backgroundColor: '#4361ff', borderRadius: 8, barThickness: 18 }]
+      datasets: [{ label: 'Headcount', data: labels.map((l) => counts.get(l)!), backgroundColor: '#6366f1', borderRadius: 8, barThickness: 18 }]
     };
   });
 
@@ -312,7 +312,7 @@ export class DashboardComponent {
     const bt = this.myBalance()?.byType ?? [];
     return {
       labels: bt.map((t) => t.type),
-      datasets: [{ data: bt.map((t) => t.used), backgroundColor: ['#4361ff', '#f59e0b', '#10b981', '#6366f1'], borderWidth: 0, hoverOffset: 4 }]
+      datasets: [{ data: bt.map((t) => t.used), backgroundColor: ['#6366f1', '#f59e0b', '#10b981', '#8b5cf6'], borderWidth: 0, hoverOffset: 4 }]
     };
   });
 

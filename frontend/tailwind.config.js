@@ -6,17 +6,17 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50: '#eef4ff',
-          100: '#dbe6ff',
-          200: '#bdd1ff',
-          300: '#94b1ff',
-          400: '#6987ff',
-          500: '#4361ff',
-          600: '#2f44e6',
-          700: '#2434b8',
-          800: '#1f2d92',
-          900: '#1d2974',
-          950: '#141a47'
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+          950: '#1e1b4b'
         },
         surface: {
           0: '#ffffff',
@@ -39,7 +39,7 @@ module.exports = {
       boxShadow: {
         soft: '0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.06)',
         card: '0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04)',
-        glow: '0 0 0 4px rgba(67, 97, 255, 0.12)'
+        glow: '0 0 0 4px rgba(99, 102, 241, 0.14)'
       },
       borderRadius: {
         xl: '0.875rem',

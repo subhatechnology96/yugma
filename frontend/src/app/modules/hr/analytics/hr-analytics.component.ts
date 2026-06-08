@@ -44,8 +44,8 @@ export class HrAnalyticsComponent {
       {
         label: 'Headcount',
         data: [210, 215, 222, 226, 229, 232, 236, 238, 241, 244, 246, 248],
-        borderColor: '#4361ff',
-        backgroundColor: 'rgba(67,97,255,0.10)',
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.10)',
         fill: true,
         tension: 0.4,
         pointRadius: 0,
@@ -62,7 +62,7 @@ export class HrAnalyticsComponent {
       datasets: [
         {
           data: Array.from(map.values()),
-          backgroundColor: ['#4361ff', '#10b981', '#f59e0b', '#6366f1', '#ef4444', '#06b6d4', '#a855f7'],
+          backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#a855f7'],
           borderWidth: 0
         }
       ]
