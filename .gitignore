@@ -45,6 +45,12 @@ Desktop.ini
 .claude/scheduled_tasks.lock
 .claude/*.lock
 
+## Azure deploy artifacts (generated — not source)
+backend/src/Yugma.Crm.Api/wwwroot/
+backend/publish/
+deploy/
+*.zip
+
 ## Misc
 *.log
 *.tmp

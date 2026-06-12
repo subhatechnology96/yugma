@@ -105,12 +105,26 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Behind Azure App Service, TLS is terminated at the platform (set "HTTPS Only" there),
+// so app-level HTTPS redirection only runs locally to avoid proxy redirect loops.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+// Serve the bundled Angular SPA from wwwroot on the same host as the API.
+// The frontend calls a relative "/api", so no CORS is needed in this single-host setup.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Non-API routes fall back to the SPA shell so Angular client-side routing works on refresh.
+app.MapFallbackToFile("index.html");
 
 // Apply pending migrations + seed demo data on startup
 await DataSeeder.SeedAsync(app.Services);
